@@ -1,18 +1,43 @@
-# Flutter
-/frontend/build/
-/frontend/.dart_tool/
-/frontend/.packages
-/frontend/pubspec.lock
+# Created by Gemini - Rekomendasi untuk proyek Gogofit
 
-# Laravel
-/backend/vendor/
-/backend/node_modules/
-/backend/.env
+# Dependencies & Secrets
+# Aturan umum untuk folder dependensi dan file environment
+node_modules/
+.env
+.env.*
+!.env.example
 
-# Python ML
+# Flutter (gogofit_frontend)
+# Menggunakan nama folder yang benar
+/gogofit_frontend/build/
+/gogofit_frontend/.dart_tool/
+/gogofit_frontend/.packages
+/gogofit_frontend/.flutter-plugins
+/gogofit_frontend/.flutter-plugins-dependencies
+# File spesifik IDE
+/gogofit_frontend/*.iml
+/gogofit_frontend/.idea/
+
+# Laravel (gogofit_backend)
+# Menggunakan nama folder yang benar dan aturan yang lebih lengkap
+/gogofit_backend/vendor/
+/gogofit_backend/node_modules/
+/gogofit_backend/.env
+/gogofit_backend/public/hot
+/gogofit_backend/public/storage
+/gogofit_backend/storage/*.key
+/gogofit_backend/storage/framework/
+/gogofit_backend/bootstrap/cache/
+
+# Python ML (ml)
 /ml/__pycache__/
 /ml/*.pyc
+/ml/venv/
+/ml/.venv/
+/ml/env/
+/ml/.env
 
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
+._*
