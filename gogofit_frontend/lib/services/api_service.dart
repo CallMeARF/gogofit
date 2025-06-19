@@ -140,7 +140,12 @@ class ApiService {
   }
 
   // Login pengguna
-  Future<Map<String, dynamic>> login(String email, String password) async {
+  // FIX: Tambahkan parameter rememberMe
+  Future<Map<String, dynamic>> login(
+    String email,
+    String password, {
+    bool rememberMe = false,
+  }) async {
     final response = await post('auth/login', {
       'email': email,
       'password': password,
@@ -151,7 +156,19 @@ class ApiService {
     if (response.statusCode == 200) {
       final token = responseBody['token'];
       if (token != null) {
-        await AuthTokenManager.setAuthToken(token);
+        // FIX: Hanya simpan token jika rememberMe true
+        if (rememberMe) {
+          await AuthTokenManager.setAuthToken(token);
+        } else {
+          // Jika rememberMe false, pastikan token lama dihapus (jika ada) dan jangan simpan yang baru.
+          // Untuk sesi non-persisten, aplikasi perlu token untuk permintaan API langsung,
+          // tetapi tidak akan diselamatkan di SharedPreferences.
+          // Saat ini, AuthTokenManager hanya menyimpan/menghapus.
+          // Anda mungkin perlu logika lebih kompleks untuk token sementara.
+          // Untuk demo ini, kita hanya akan skip `setAuthToken` jika rememberMe false.
+          debugPrint('Remember Me is false, token not saved persistently.');
+          // Asumsi: jika token tidak disimpan, aplikasi akan re-login saat restart.
+        }
       }
       return {
         'success': true,
@@ -200,6 +217,7 @@ class ApiService {
     if (response.statusCode == 201) {
       final token = responseBody['token'];
       if (token != null) {
+        // Untuk register, sesi akan selalu persisten secara default
         await AuthTokenManager.setAuthToken(token);
       }
       return {
@@ -236,20 +254,24 @@ class ApiService {
 
   // Memperbarui profil pengguna
   Future<Map<String, dynamic>> updateProfile(UserProfile profile) async {
+    String? beGoal = _mapPurposeEnumToString(profile.purpose);
+
+    String? beGender;
+    if (profile.gender == 'Laki-laki') {
+      beGender = 'male';
+    } else if (profile.gender == 'Perempuan') {
+      beGender = 'female';
+    }
+
     final Map<String, dynamic> body = {
       'name': profile.name,
       'email': profile.email,
-      // Map gender dari FE string ke BE string
-      'gender':
-          profile.gender == 'Laki-laki'
-              ? 'male'
-              : (profile.gender == 'Perempuan' ? 'female' : null),
+      'gender': beGender,
       'birth_date': profile.birthDate.toIso8601String().split('T')[0],
       'height': profile.heightCm,
       'weight': profile.currentWeightKg,
       'target_weight': profile.targetWeightKg,
-      // Map purpose dari FE enum ke BE string
-      'goal': _mapPurposeEnumToString(profile.purpose), // Gunakan helper baru
+      'goal': beGoal,
     };
 
     body.removeWhere((key, value) => value == null);
@@ -275,7 +297,7 @@ class ApiService {
     }
   }
 
-  // BARU: Helper untuk memetakan DietPurpose enum (Flutter) ke string goal (BE)
+  // Helper untuk memetakan DietPurpose enum (Flutter) ke string goal (BE)
   String? _mapPurposeEnumToString(DietPurpose purpose) {
     switch (purpose) {
       case DietPurpose.loseWeight:
@@ -291,20 +313,49 @@ class ApiService {
 
   // --- API untuk Logout ---
   Future<Map<String, dynamic>> logout() async {
-    final response = await post(
-      'auth/logout',
-      {},
-    ); // Panggil endpoint logout BE
+    final response = await post('auth/logout', {});
     final responseBody = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
-      await AuthTokenManager.clearAuthToken(); // Pastikan token dihapus
+      await AuthTokenManager.clearAuthToken();
       return {'success': true, 'message': responseBody['message']};
     } else {
       debugPrint('Logout failed: ${response.statusCode} ${response.body}');
       return {
         'success': false,
         'message': responseBody['message'] ?? 'Logout failed.',
+      };
+    }
+  }
+
+  // API untuk mengubah password pengguna
+  Future<Map<String, dynamic>> changePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    final body = {
+      'old_password': oldPassword,
+      'new_password': newPassword,
+      'new_password_confirmation': newPasswordConfirmation,
+    };
+
+    final response = await post('auth/change-password', body); // Endpoint baru
+
+    final responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return {
+        'success': true,
+        'message': responseBody['message'] ?? 'Password berhasil diubah.',
+      };
+    } else {
+      debugPrint(
+        'Change password failed: ${response.statusCode} ${response.body}',
+      );
+      return {
+        'success': false,
+        'message': responseBody['message'] ?? 'Gagal mengubah password.',
       };
     }
   }

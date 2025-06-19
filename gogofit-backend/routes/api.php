@@ -18,12 +18,13 @@ use App\Http\Controllers\NotificationController;
 |
 */
 
-// Rute untuk autentikasi (Login, Register, dan Logout)
+// Rute untuk autentikasi (Login, Register, Logout, dan Change Password)
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
-    // BARU: Tambahkan rute logout di sini
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+    // BARU: Tambahkan rute untuk mengubah password
+    Route::post('/change-password', [AuthController::class, 'changePassword'])->middleware('auth:sanctum');
 });
 
 // Rute yang memerlukan autentikasi (untuk pengguna yang sudah login)

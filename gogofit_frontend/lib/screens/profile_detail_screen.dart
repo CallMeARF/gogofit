@@ -4,6 +4,7 @@ import 'package:flutter/services.dart'; // Untuk FilteringTextInputFormatter
 import 'package:gogofit_frontend/models/user_profile_data.dart'; // Import model profil
 import 'package:intl/intl.dart'; // Untuk format tanggal, tambahkan package intl di pubspec.yaml
 import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
+import 'package:gogofit_frontend/screens/change_password_screen.dart'; // BARU: Import ChangePasswordScreen
 
 class ProfileDetailScreen extends StatefulWidget {
   const ProfileDetailScreen({super.key});
@@ -513,7 +514,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                           child: ElevatedButton(
                             onPressed: () {
                               debugPrint('Navigasi ke halaman Ubah Kata Sandi');
-                              // TODO: Implement navigation to Change Password Screen
+                              // BARU: Navigasi ke ChangePasswordScreen
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) => const ChangePasswordScreen(),
+                                ),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: lightBlueCardBackground,

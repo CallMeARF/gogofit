@@ -5,7 +5,7 @@ import 'package:gogofit_frontend/screens/auth/register_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService untuk login nyata
 import 'package:gogofit_frontend/screens/dashboard_screen.dart'; // Import DashboardScreen
-import 'package:gogofit_frontend/models/user_profile_data.dart'; // BARU: Import UserProfile model
+import 'package:gogofit_frontend/models/user_profile_data.dart'; // Import UserProfile model
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,7 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _rememberMe = false;
+  bool _rememberMe = false; // State untuk checkbox "Ingatkan saya"
   final ApiService _apiService = ApiService(); // Inisialisasi ApiService
 
   @override
@@ -40,28 +40,28 @@ class _LoginScreenState extends State<LoginScreen> {
     _showLoadingDialog(); // Tampilkan loading dialog
 
     try {
-      final response = await _apiService.login(email, password);
+      // FIX: Meneruskan nilai _rememberMe ke ApiService.login()
+      final response = await _apiService.login(
+        email,
+        password,
+        rememberMe: _rememberMe,
+      );
 
       if (!mounted) return;
       Navigator.of(context).pop(); // Tutup loading dialog
 
       if (response['success']) {
-        // BARU: Setelah login berhasil, ambil data profil terbaru
         final UserProfile? fetchedProfile = await _apiService.getUserProfile();
 
-        // FIX: Cek mounted lagi setelah fetching profil
         if (!mounted) return;
 
         if (fetchedProfile != null) {
-          currentUserProfile.value =
-              fetchedProfile; // Perbarui ValueNotifier global
+          currentUserProfile.value = fetchedProfile;
           debugPrint(
             'User profile updated after successful login: ${fetchedProfile.name}',
           );
         } else {
           debugPrint('Failed to fetch user profile immediately after login.');
-          // Meskipun gagal fetch profil, tetap lanjutkan ke dashboard
-          // Pengguna bisa mencoba refresh/memasuki halaman profil nanti
         }
 
         _showAlertDialog(
