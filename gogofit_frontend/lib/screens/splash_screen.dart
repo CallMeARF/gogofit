@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:gogofit_frontend/screens/auth/login_screen.dart';
+import 'package:gogofit_frontend/screens/dashboard_screen.dart'; // Import DashboardScreen
 import 'package:gogofit_frontend/services/notification_service.dart'; // Import NotificationService
 import 'package:permission_handler/permission_handler.dart'; // Import permission_handler
+import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService untuk AuthTokenManager
+import 'package:gogofit_frontend/models/user_profile_data.dart'; // BARU: Import UserProfile model dan currentUserProfile
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,10 +21,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _initializeAppAndNavigate() async {
-    // WidgetsFlutterBinding.ensureInitialized() sudah di main.dart, tidak perlu lagi di sini
-
     try {
-      // 1. Meminta izin notifikasi secara eksplisit (PENTING untuk API 36.0)
+      // 1. Meminta izin notifikasi secara eksplisit
       var status = await Permission.notification.status;
       debugPrint("Initial Notification permission status: $status");
 
@@ -32,46 +33,75 @@ class _SplashScreenState extends State<SplashScreen> {
           debugPrint(
             "Izin notifikasi tidak diberikan. Beberapa fitur mungkin tidak berfungsi.",
           );
-          // Jika izin tidak diberikan, aplikasi akan tetap berjalan, tapi notifikasi tidak muncul.
         }
       }
-      status =
-          await Permission
-              .notification
-              .status; // Perbarui status setelah permintaan
+      status = await Permission.notification.status;
       debugPrint("Final Notification permission status: $status");
 
       // 2. Inisialisasi NotificationService
       await notificationService.init();
       debugPrint("Local Notification Service initialized!");
 
-      // 3. PICU NOTIFIKASI UJI COBA SEGERA SETELAH INIT (untuk melihat apakah plugin bekerja)
-      // BARIS INI DIKOMENTARI/DIHAPUS UNTUK MENGHILANGKAN NOTIFIKASI TEST LAUNCH
-      // await notificationService.showLocalNotification(
-      //   id: 999, // ID unik
-      //   title: 'Gogofit Test Launch',
-      //   body: 'Aplikasi berhasil diluncurkan dan notifikasi berfungsi!',
-      //   channelId: 'gogofit_test_channel_launch',
-      //   channelName: 'Test Launch Notifikasi',
-      //   channelDescription: 'Channel untuk menguji notifikasi saat peluncuran',
-      //   payload: 'test_launch_payload',
-      // );
-      // debugPrint("Test notification triggered from SplashScreen.");
-
-      // 4. Jeda untuk splash screen terlihat jelas
+      // 3. Jeda untuk splash screen terlihat jelas
       await Future.delayed(const Duration(seconds: 2));
+
+      // 4. Periksa status login untuk navigasi
+      bool isLoggedIn = await AuthTokenManager.hasAuthToken();
+      debugPrint("User logged in status: $isLoggedIn");
+
+      if (!mounted) return;
+
+      if (isLoggedIn) {
+        try {
+          final userProfile = await ApiService().getUserProfile();
+          if (!mounted) return;
+          if (userProfile != null) {
+            currentUserProfile.value =
+                userProfile; // Perbarui data profil global
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            );
+            debugPrint("Splash screen selesai, auto-login ke DashboardScreen.");
+          } else {
+            await AuthTokenManager.clearAuthToken(); // Hapus token tidak valid
+            if (!mounted) return;
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
+            );
+            debugPrint(
+              "Splash screen selesai, token invalid, mengarahkan ke LoginScreen.",
+            );
+          }
+        } catch (e) {
+          debugPrint("Error fetching user profile during auto-login: $e");
+          await AuthTokenManager.clearAuthToken(); // Hapus token jika ada error
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+          debugPrint(
+            "Splash screen selesai, error saat auto-login, mengarahkan ke LoginScreen.",
+          );
+        }
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+        debugPrint(
+          "Splash screen selesai, tidak ada token, mengarahkan ke LoginScreen.",
+        );
+      }
     } catch (e) {
       debugPrint("Error during app initialization: $e");
-      // Jika terjadi error serius saat inisialisasi, Anda bisa arahkan ke halaman error
       await Future.delayed(const Duration(seconds: 3));
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+      debugPrint(
+        "Splash screen selesai, terjadi error, mengarahkan ke LoginScreen.",
+      );
     }
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-    );
-    debugPrint("Splash screen selesai, navigasi otomatis ke halaman Login...");
   }
 
   @override
@@ -82,28 +112,26 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
+            const Text(
               'Selamat Datang di',
               style: TextStyle(
-                color: const Color(0xFF002033),
+                color: Color(0xFF002033),
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Poppins',
               ),
             ),
             const SizedBox(height: 40),
-            Image(
-              image: const AssetImage(
-                'assets/images/logo_gogofit.png',
-              ), // Pastikan path ini benar
+            const Image(
+              image: AssetImage('assets/images/logo_gogofit.png'),
               width: 400,
               height: 400,
             ),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               'GOGO-FIT',
               style: TextStyle(
-                color: const Color(0xFF002033),
+                color: Color(0xFF002033),
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2.0,

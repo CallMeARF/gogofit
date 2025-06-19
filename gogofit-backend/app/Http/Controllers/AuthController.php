@@ -19,32 +19,24 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            // FIX: Kembalikan validasi ke 'in:' untuk enum
             'gender' => 'nullable|in:male,female', 
             'birth_date' => 'nullable|date',
             'height' => 'nullable|numeric',
             'weight' => 'nullable|numeric',
             'target_weight' => 'nullable|numeric',
-            // FIX: Kembalikan validasi ke 'in:' untuk enum
             'goal' => 'nullable|in:lose_weight,gain_weight,stay_healthy', 
         ]);
-
-        // DIHAPUS: Pemetaan $beGender dan $beGoal karena sudah dilakukan di Flutter (api_service.dart)
-        // $beGender = null;
-        // if ($request->gender == 'Laki-laki') { $beGender = 'male'; } elseif ($request->gender == 'Perempuan') { $beGender = 'female'; }
-        // $beGoal = null;
-        // if ($request->goal == 'Menurunkan Berat Badan') { $beGoal = 'lose_weight'; } elseif ($request->goal == 'Menaikkan Berat Badan') { $beGoal = 'gain_weight'; } elseif ($request->goal == 'Menjaga Kesehatan') { $beGoal = 'stay_healthy'; }
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'gender' => $request->gender, // FIX: Gunakan langsung $request->gender (sudah BE string dari Flutter)
+            'gender' => $request->gender, 
             'birth_date' => $request->birth_date,
             'height' => $request->height,
             'weight' => $request->weight,
             'target_weight' => $request->target_weight,
-            'goal' => $request->goal, // FIX: Gunakan langsung $request->goal (sudah BE string dari Flutter)
+            'goal' => $request->goal, 
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -94,27 +86,14 @@ class AuthController extends Controller
         $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
-            // FIX: Kembalikan validasi ke 'in:' untuk enum
             'gender' => 'nullable|in:male,female', 
             'birth_date' => 'nullable|date',
             'height' => 'nullable|numeric',
             'weight' => 'nullable|numeric', 
             'target_weight' => 'nullable|numeric', 
-            // FIX: Kembalikan validasi ke 'in:' untuk enum
             'goal' => 'nullable|in:lose_weight,gain_weight,stay_healthy', 
         ]);
-
-        // DIHAPUS: Pemetaan $beGender dan $beGoal karena sudah dilakukan di Flutter (api_service.dart)
-        // $beGender = null;
-        // if ($request->gender == 'Laki-laki') { $beGender = 'male'; } elseif ($request->gender == 'Perempuan') { $beGender = 'female'; }
-        // $beGoal = null;
-        // if ($request->goal == 'Menurunkan Berat Badan') { $beGoal = 'lose_weight'; } elseif ($request->goal == 'Menaikkan Berat Badan') { $beGoal = 'gain_weight'; } elseif ($request->goal == 'Menjaga Kesehatan') { $beGoal = 'stay_healthy'; }
         
-        // $user->fill($request->except(['gender', 'goal'])); // Fill yang lain dulu (gender dan goal tidak perlu di-exclude lagi)
-        // $user->gender = $beGender; // Set gender secara manual
-        // $user->goal = $beGoal; // Set goal secara manual
-
-        // FIX: Gunakan fill dengan $request->all() karena request sudah berisi string BE yang benar
         $user->fill($request->all());
         $user->save();
 
@@ -139,6 +118,35 @@ class AuthController extends Controller
         return response()->json($this->mapUserToFlutterResponse($user));
     }
 
+    // BARU: Metode untuk mengubah password pengguna
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'old_password' => 'required|string',
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        // Verifikasi password lama
+        if (!Hash::check($request->old_password, $user->password)) {
+            throw ValidationException::withMessages([
+                'old_password' => ['Kata sandi lama tidak cocok.'],
+            ]);
+        }
+
+        // Simpan password baru
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        // Opsi: Revoke semua token sesi lama untuk keamanan
+        // $user->tokens()->delete(); 
+
+        return response()->json(['message' => 'Kata sandi berhasil diubah.']);
+    }
+
+
     /**
      * Logout the user (revoke token).
      */
@@ -155,8 +163,6 @@ class AuthController extends Controller
      */
     protected function mapUserToFlutterResponse(User $user)
     {
-        // Mengembalikan nilai asli dari database untuk gender dan goal
-        // Pemetaan ke Bahasa Indonesia akan dilakukan di Flutter (UserProfile.fromJson)
         return [
             'id' => $user->id,
             'name' => $user->name,

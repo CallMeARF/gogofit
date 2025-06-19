@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:gogofit_frontend/screens/splash_screen.dart'; // Import SplashScreen
 import 'package:gogofit_frontend/models/notification_data.dart'; // Import notification_data.dart
-// Tidak perlu mengimpor notification_service di sini lagi
+import 'package:intl/date_symbol_data_local.dart'; // Untuk inisialisasi locale Int
 
-void main() {
-  // Pastikan ini ada di awal sekali. Ini sangat krusial untuk inisialisasi plugin.
-  WidgetsFlutterBinding.ensureInitialized(); // <<<--- PASTIKAN ADA DAN HANYA SATU DI SINI
-
-  // Hanya panggil addDummyNotifications di sini untuk mengisi data notifikasi in-app
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id', null);
   addDummyNotifications();
-  runApp(const MyApp());
+  runApp(const MyApp()); // MyApp tidak perlu parameter isLoggedIn lagi
 }
 
 class MyApp extends StatelessWidget {
@@ -115,9 +113,9 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('en', ''), Locale('id', '')],
-      locale: const Locale('id', ''),
+      locale: const Locale('id', ''), // Mengatur locale default ke Indonesia
 
-      home: const SplashScreen(),
+      home: const SplashScreen(), // Selalu mulai dari SplashScreen
       debugShowCheckedModeBanner: false,
     );
   }
