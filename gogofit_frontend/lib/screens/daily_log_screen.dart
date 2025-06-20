@@ -6,8 +6,11 @@ import 'package:gogofit_frontend/screens/add_meal_manual_screen.dart';
 import 'package:gogofit_frontend/screens/dashboard_screen.dart';
 import 'package:gogofit_frontend/screens/edit_meal_list_screen.dart';
 import 'package:gogofit_frontend/screens/more_options_screen.dart';
-import 'package:gogofit_frontend/models/notification_data.dart'; // Import notification_data.dart
-import 'package:gogofit_frontend/screens/notifications_screen.dart'; // Import NotificationsScreen
+import 'package:gogofit_frontend/models/notification_data.dart';
+import 'package:gogofit_frontend/screens/notifications_screen.dart';
+import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
+import 'package:intl/intl.dart'; // Import IntL for DateFormat
+import 'package:gogofit_frontend/models/user_profile_data.dart'; // Import UserProfile model untuk target kalori/gula
 
 class DailyLogScreen extends StatefulWidget {
   const DailyLogScreen({super.key});
@@ -31,24 +34,77 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
   final Color alertRedColor = const Color(0xFFEF5350);
 
   DateTime _selectedDate = DateTime.now();
+  List<MealEntry> _foodLogs = []; // Untuk menyimpan log makanan dari API
+  bool _isLoading = false; // Untuk indikator loading
+  final ApiService _apiService = ApiService(); // Inisialisasi ApiService
+
+  double _targetDailyCalories = 1340.0;
+  final double _exerciseCalories = 190.0;
+  double _targetDailySugar = 30.0;
 
   @override
   void initState() {
     super.initState();
-    userMeals.addListener(_updateScreen);
-    // addDummyNotifications(); // Pastikan sudah dipanggil di main.dart
+    _loadInitialData(); // Panggil metode untuk memuat data awal
+    // HAPUS: userMeals.addListener(_onUserMealsChanged); // Menghilangkan listener untuk memutus loop
   }
 
   @override
   void dispose() {
-    userMeals.removeListener(_updateScreen);
+    // HAPUS: userMeals.removeListener(_onUserMealsChanged); // Menghilangkan listener yang sudah tidak ada
     super.dispose();
   }
 
-  void _updateScreen() {
+  // HAPUS: Fungsi _onUserMealsChanged() karena tidak lagi diperlukan untuk memicu refetch
+  /*
+  void _onUserMealsChanged() {
+    debugPrint("userMeals changed, refetching food logs for DailyLogScreen.");
+    _fetchFoodLogs();
+  }
+  */
+
+  Future<void> _loadInitialData() async {
     setState(() {
-      // Rebuild UI saat data userMeals berubah
+      _targetDailyCalories = currentUserProfile.value.targetWeightKg * 20;
+      _targetDailySugar = currentUserProfile.value.targetWeightKg / 2;
     });
+
+    await _fetchFoodLogs();
+  }
+
+  Future<void> _fetchFoodLogs() async {
+    setState(() {
+      _isLoading = true; // Mulai loading
+    });
+    try {
+      final List<MealEntry> fetchedLogs = await _apiService.getFoodLogs(
+        date: _selectedDate,
+      );
+      if (!mounted) return;
+      setState(() {
+        _foodLogs = fetchedLogs; // Perbarui list _foodLogs
+        // HAPUS: userMeals.value = List.from(fetchedLogs); // Baris ini yang menyebabkan infinite loop!
+        // Jika userMeals.value perlu diperbarui, itu harus dilakukan oleh layar yang mengubah data (AddMealManualScreen/EditMealListScreen)
+        // atau jika DailyLogScreen menggunakan ValueListenableBuilder untuk userMeals, maka _foodLogs tidak perlu ada.
+      });
+      debugPrint(
+        "Fetched food logs for ${_selectedDate.toIso8601String().split('T')[0]}: ${_foodLogs.length} entries",
+      );
+    } catch (e) {
+      debugPrint("Error fetching food logs: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat log makanan: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false; // Selesai loading
+        });
+      } else {
+        debugPrint('Widget not mounted in finally block. Cannot set state.');
+      }
+    }
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -81,19 +137,22 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
       setState(() {
         _selectedDate = picked;
       });
+      await _fetchFoodLogs(); // Muat ulang log makanan saat tanggal berubah
     }
   }
 
-  void _goToPreviousDay() {
+  void _goToPreviousDay() async {
     setState(() {
       _selectedDate = _selectedDate.subtract(const Duration(days: 1));
     });
+    await _fetchFoodLogs();
   }
 
-  void _goToNextDay() {
+  void _goToNextDay() async {
     setState(() {
       _selectedDate = _selectedDate.add(const Duration(days: 1));
     });
+    await _fetchFoodLogs();
   }
 
   String _formatDate(DateTime date) {
@@ -107,467 +166,440 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
         date.year == DateTime.now().year) {
       return 'Kemarin';
     } else {
-      return '${date.day}/${date.month}/${date.year}';
+      return DateFormat('dd MMMM Geißler', 'id').format(date);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<MealEntry>>(
-      valueListenable: userMeals,
-      builder: (context, allMeals, child) {
-        final List<MealEntry> mealsForSelectedDate =
-            allMeals
-                .where(
-                  (meal) =>
-                      meal.timestamp.year == _selectedDate.year &&
-                      meal.timestamp.month == _selectedDate.month &&
-                      meal.timestamp.day == _selectedDate.day,
-                )
-                .toList();
+    // FIX: Pastikan _foodLogs difilter berdasarkan _selectedDate
+    final List<MealEntry> mealsForSelectedDate =
+        _foodLogs
+            .where(
+              (meal) =>
+                  meal.timestamp.year == _selectedDate.year &&
+                  meal.timestamp.month == _selectedDate.month &&
+                  meal.timestamp.day == _selectedDate.day,
+            )
+            .toList();
 
-        final double totalCaloriesConsumed = mealsForSelectedDate.fold(
-          // UBAH: dari int menjadi double
-          0.0, // UBAH: dari 0 menjadi 0.0
-          (sum, meal) => sum + meal.calories,
-        );
-        final double totalSugarConsumed = mealsForSelectedDate.fold(
-          0.0,
-          (sum, meal) => sum + meal.sugar,
-        );
+    final double totalCaloriesConsumed = mealsForSelectedDate.fold(
+      0.0,
+      (sum, meal) => sum + meal.calories,
+    );
+    final double totalSugarConsumed = mealsForSelectedDate.fold(
+      0.0,
+      (sum, meal) => sum + meal.sugar,
+    );
 
-        const double targetCalories = 1340.0; // UBAH: dari int menjadi double
-        const double exerciseCalories = 190.0; // UBAH: dari int menjadi double
-        const double targetSugar = 30.0;
+    double remainingCalories =
+        _targetDailyCalories - totalCaloriesConsumed + _exerciseCalories;
+    double remainingSugar = _targetDailySugar - totalSugarConsumed;
 
-        double remainingCalories = // UBAH: dari int menjadi double
-            targetCalories - totalCaloriesConsumed + exerciseCalories;
-        double remainingSugar = targetSugar - totalSugarConsumed;
+    String calorieUnit = 'Sisa';
+    Color calorieValueColor = darkerBlue;
+    if (remainingCalories < 0) {
+      calorieUnit = 'Kelebihan';
+      remainingCalories = remainingCalories.abs();
+      calorieValueColor = alertRedColor;
+    }
 
-        String calorieUnit = 'Sisa';
-        Color calorieValueColor = darkerBlue;
-        if (remainingCalories < 0) {
-          calorieUnit = 'Kelebihan';
-          remainingCalories = remainingCalories.abs();
-          calorieValueColor = alertRedColor;
-        }
+    String sugarUnit = 'Sisa';
+    Color sugarValueColor = darkerBlue;
+    if (remainingSugar < 0) {
+      sugarUnit = 'Kelebihan';
+      remainingSugar = remainingSugar.abs();
+      sugarValueColor = alertRedColor;
+    }
 
-        String sugarUnit = 'Sisa';
-        Color sugarValueColor = darkerBlue;
-        if (remainingSugar < 0) {
-          sugarUnit = 'Kelebihan';
-          remainingSugar = remainingSugar.abs();
-          sugarValueColor = alertRedColor;
-        }
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0.0,
+        shadowColor: Colors.transparent,
+        leading: IconButton(
+          icon: Icon(Icons.person, color: primaryBlueNormal, size: 28),
+          onPressed: () {
+            debugPrint('Navigasi ke halaman Profil');
+          },
+        ),
+        title: Text(
+          'GOGOFIT',
+          style: TextStyle(
+            color: darkerBlue,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Poppins',
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          ValueListenableBuilder<List<AppNotification>>(
+            valueListenable: appNotifications,
+            builder: (context, notifications, child) {
+              final int unreadCount = getUnreadNotificationCount();
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.notifications,
+                      color: primaryBlueNormal,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: alertRedColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 12,
+                          minHeight: 12,
+                        ),
+                        child: Text(
+                          unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontFamily: 'Poppins',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      body:
+          _isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: Colors.blueAccent),
+              )
+              : SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Bagian Navigasi Tanggal
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              Icons.arrow_back_ios,
+                              color: darkerBlue,
+                              size: 20,
+                            ),
+                            onPressed: _goToPreviousDay,
+                          ),
+                          GestureDetector(
+                            onTap: () => _selectDate(context),
+                            child: Row(
+                              children: [
+                                Text(
+                                  _formatDate(_selectedDate),
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: darkerBlue,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.calendar_today,
+                                  color: darkerBlue,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.arrow_forward_ios,
+                              color: darkerBlue,
+                              size: 20,
+                            ),
+                            onPressed: _goToNextDay,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
 
-        return Scaffold(
-          backgroundColor: Colors.white,
-          appBar: AppBar(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            scrolledUnderElevation: 0.0,
-            shadowColor: Colors.transparent,
-            leading: IconButton(
-              icon: Icon(Icons.person, color: primaryBlueNormal, size: 28),
-              onPressed: () {
-                debugPrint('Navigasi ke halaman Profil');
-              },
-            ),
-            title: Text(
-              'GOGOFIT',
-              style: TextStyle(
-                color: darkerBlue,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Poppins',
+                      // Kartu Sisa Kalori
+                      _buildSummaryCard(
+                        title: 'Sisa Kalori',
+                        data: [
+                          {
+                            'label': 'Sasaran',
+                            'value': _targetDailyCalories.toStringAsFixed(0),
+                          },
+                          {
+                            'label': 'Makanan',
+                            'value': totalCaloriesConsumed.toStringAsFixed(0),
+                          },
+                          {
+                            'label': 'Latihan',
+                            'value': _exerciseCalories.toStringAsFixed(0),
+                          },
+                          {
+                            'label': 'Sisa',
+                            'value': remainingCalories.toStringAsFixed(0),
+                            'isResult': true,
+                          },
+                        ],
+                        mainColor: lightBlueCardBackground,
+                        darkerTextColor: darkerBlue,
+                        valueColorForSummary: calorieValueColor,
+                        unitForSummary: calorieUnit,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Kartu Sisa Gula
+                      _buildSummaryCard(
+                        title: 'Sisa Gula',
+                        data: [
+                          {
+                            'label': 'Sasaran',
+                            'value':
+                                '${_targetDailySugar.toStringAsFixed(1)} gram',
+                          },
+                          {
+                            'label': 'Makanan',
+                            'value': totalSugarConsumed.toStringAsFixed(1),
+                          },
+                          {
+                            'label': 'Sisa',
+                            'value': remainingSugar.toStringAsFixed(1),
+                            'isResult': true,
+                          },
+                        ],
+                        mainColor: lightBlueCardBackground,
+                        darkerTextColor: darkerBlue,
+                        valueColorForSummary: sugarValueColor,
+                        unitForSummary: sugarUnit,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Bagian Daftar Makanan per Santapan
+                      _buildMealSection(
+                        context,
+                        'Sarapan',
+                        mealsForSelectedDate
+                            .where((meal) => meal.mealType == 'Sarapan')
+                            .toList(),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildMealSection(
+                        context,
+                        'Makan Siang',
+                        mealsForSelectedDate
+                            .where((meal) => meal.mealType == 'Makan Siang')
+                            .toList(),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildMealSection(
+                        context,
+                        'Makan Malam',
+                        mealsForSelectedDate
+                            .where((meal) => meal.mealType == 'Makan Malam')
+                            .toList(),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildMealSection(
+                        context,
+                        'Camilan',
+                        mealsForSelectedDate
+                            .where((meal) => meal.mealType == 'Camilan')
+                            .toList(),
+                      ),
+                      const SizedBox(height: 100),
+                    ],
+                  ),
+                ),
+              ),
+      bottomNavigationBar: Container(
+        height: 170,
+        color: Colors.transparent,
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            // Wave background using SVG asset
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: SvgPicture.asset(
+                'assets/images/bottom_wave_nav.svg',
+                fit: BoxFit.fill,
+                colorFilter: ColorFilter.mode(
+                  primaryBlueNormal,
+                  BlendMode.srcIn,
+                ),
+                height: 170,
               ),
             ),
-            centerTitle: true,
-            actions: [
-              // Stack untuk ikon lonceng dan badge notifikasi
-              ValueListenableBuilder<List<AppNotification>>(
-                // <<<--- DIUBAH: Menggunakan ValueListenableBuilder di sini
-                valueListenable: appNotifications,
-                builder: (context, notifications, child) {
-                  final int unreadCount =
-                      getUnreadNotificationCount(); // Ambil jumlah belum dibaca
-                  return Stack(
+            // Bottom Navigation Bar
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: BottomNavigationBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                selectedItemColor: Colors.white,
+                unselectedItemColor: white70Opacity,
+                selectedLabelStyle: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                unselectedLabelStyle: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: white70Opacity,
+                ),
+                showUnselectedLabels: true,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.dashboard),
+                    label: 'Dasbor',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.menu_book),
+                    label: 'Buku Harian',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.more_horiz),
+                    label: 'Lainnya',
+                  ),
+                ],
+                currentIndex: 1, // Atur currentIndex ke 1 untuk DailyLogScreen
+                onTap: (index) {
+                  if (index == 0) {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DashboardScreen(),
+                      ),
+                    );
+                  } else if (index == 1) {
+                    debugPrint('Already on DailyLogScreen');
+                  } else if (index == 2) {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MoreOptionsScreen(),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ),
+            // Search bar (diposisikan sama dengan Dashboard)
+            Positioned(
+              bottom: 95,
+              left: 40,
+              right: 40,
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SelectMealScreen(),
+                    ),
+                  );
+                },
+                child: Container(
+                  height: 40.0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(30.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: black25Opacity,
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Row(
                     children: [
+                      Icon(Icons.search, color: searchBarIconColor, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          readOnly: true,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SelectMealScreen(),
+                              ),
+                            );
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Cari Makanan',
+                            hintStyle: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontFamily: 'Poppins',
+                              fontSize: 14,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 14,
+                          ),
+                          textAlignVertical: TextAlignVertical.center,
+                        ),
+                      ),
                       IconButton(
                         icon: Icon(
-                          Icons.notifications,
-                          color: primaryBlueNormal,
-                          size: 28,
+                          Icons.camera_alt,
+                          color: searchBarIconColor,
+                          size: 30,
                         ),
                         onPressed: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const NotificationsScreen(),
+                              builder: (context) => const SelectMealScreen(),
                             ),
                           );
                         },
-                      ),
-                      if (unreadCount >
-                          0) // Tampilkan badge jika ada notifikasi belum dibaca
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: alertRedColor,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 12,
-                              minHeight: 12,
-                            ),
-                            child: Text(
-                              unreadCount.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 8,
-                                fontFamily: 'Poppins',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-          body: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Bagian Navigasi Tanggal
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.arrow_back_ios,
-                          color: darkerBlue,
-                          size: 20,
-                        ),
-                        onPressed: _goToPreviousDay,
-                      ),
-                      GestureDetector(
-                        onTap: () => _selectDate(context),
-                        child: Row(
-                          children: [
-                            Text(
-                              _formatDate(_selectedDate),
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: darkerBlue,
-                                fontFamily: 'Poppins',
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.calendar_today,
-                              color: darkerBlue,
-                              size: 20,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.arrow_forward_ios,
-                          color: darkerBlue,
-                          size: 20,
-                        ),
-                        onPressed: _goToNextDay,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-
-                  // Kartu Sisa Kalori
-                  _buildSummaryCard(
-                    title: 'Sisa Kalori',
-                    data: [
-                      {
-                        'label': 'Sasaran',
-                        'value': targetCalories.toStringAsFixed(0),
-                      }, // UBAH: Format desimal
-                      {
-                        'label': 'Makanan',
-                        'value': totalCaloriesConsumed.toStringAsFixed(
-                          0,
-                        ), // UBAH: Format desimal
-                      },
-                      {
-                        'label': 'Latihan',
-                        'value': exerciseCalories.toStringAsFixed(
-                          0,
-                        ), // UBAH: Format desimal
-                      },
-                      {
-                        'label': 'Sisa',
-                        'value': remainingCalories.toStringAsFixed(
-                          0,
-                        ), // UBAH: Format desimal
-                        'isResult': true,
-                      },
-                    ],
-                    mainColor: lightBlueCardBackground,
-                    darkerTextColor: darkerBlue,
-                    valueColorForSummary:
-                        calorieValueColor, // Mengirim warna nilai sisa/kelebihan
-                    unitForSummary: calorieUnit, // Mengirim unit sisa/kelebihan
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Kartu Sisa Gula
-                  _buildSummaryCard(
-                    title: 'Sisa Gula',
-                    data: [
-                      {
-                        'label': 'Sasaran',
-                        'value':
-                            '${targetSugar.toStringAsFixed(1)} gram', // UBAH: Format desimal
-                      },
-                      {
-                        'label': 'Makanan',
-                        'value': totalSugarConsumed.toStringAsFixed(
-                          1,
-                        ), // UBAH: Format desimal
-                      },
-                      {
-                        'label': 'Sisa',
-                        'value': remainingSugar.toStringAsFixed(
-                          1,
-                        ), // UBAH: Format desimal
-                        'isResult': true,
-                      },
-                    ],
-                    mainColor: lightBlueCardBackground,
-                    darkerTextColor: darkerBlue,
-                    valueColorForSummary:
-                        sugarValueColor, // Mengirim warna nilai sisa/kelebihan
-                    unitForSummary: sugarUnit, // Mengirim unit sisa/kelebihan
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Bagian Daftar Makanan per Santapan
-                  _buildMealSection(
-                    context,
-                    'Sarapan',
-                    mealsForSelectedDate
-                        .where((meal) => meal.mealType == 'Sarapan')
-                        .toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildMealSection(
-                    context,
-                    'Makan Siang',
-                    mealsForSelectedDate
-                        .where((meal) => meal.mealType == 'Makan Siang')
-                        .toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildMealSection(
-                    context,
-                    'Makan Malam',
-                    mealsForSelectedDate
-                        .where((meal) => meal.mealType == 'Makan Malam')
-                        .toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildMealSection(
-                    context,
-                    'Camilan',
-                    mealsForSelectedDate
-                        .where((meal) => meal.mealType == 'Camilan')
-                        .toList(),
-                  ),
-                  const SizedBox(height: 100),
-                ],
+                ),
               ),
             ),
-          ),
-          bottomNavigationBar: Container(
-            height: 170,
-            color: Colors.transparent,
-            child: Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                // Wave background using SVG asset
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: SvgPicture.asset(
-                    'assets/images/bottom_wave_nav.svg',
-                    fit: BoxFit.fill,
-                    colorFilter: ColorFilter.mode(
-                      primaryBlueNormal,
-                      BlendMode.srcIn,
-                    ),
-                    height: 170,
-                  ),
-                ),
-                // Bottom Navigation Bar
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: BottomNavigationBar(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    selectedItemColor: Colors.white,
-                    unselectedItemColor: white70Opacity,
-                    selectedLabelStyle: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    unselectedLabelStyle: TextStyle(
-                      fontFamily: 'Poppins',
-                      color: white70Opacity,
-                    ),
-                    showUnselectedLabels: true,
-                    items: const [
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.dashboard),
-                        label: 'Dasbor',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.menu_book),
-                        label: 'Buku Harian',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.more_horiz),
-                        label: 'Lainnya',
-                      ),
-                    ],
-                    currentIndex:
-                        1, // Atur currentIndex ke 1 untuk DailyLogScreen
-                    onTap: (index) {
-                      if (index == 0) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DashboardScreen(),
-                          ),
-                        );
-                      } else if (index == 1) {
-                        debugPrint('Already on DailyLogScreen');
-                      } else if (index == 2) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MoreOptionsScreen(),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ),
-                // Search bar (diposisikan sama dengan Dashboard)
-                Positioned(
-                  bottom: 95,
-                  left: 40,
-                  right: 40,
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SelectMealScreen(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      height: 40.0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(30.0),
-                        boxShadow: [
-                          BoxShadow(
-                            color: black25Opacity,
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.search,
-                            color: searchBarIconColor,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              readOnly: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (context) => const SelectMealScreen(),
-                                  ),
-                                );
-                              },
-                              decoration: InputDecoration(
-                                hintText: 'Cari Makanan',
-                                hintStyle: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontFamily: 'Poppins',
-                                  fontSize: 14,
-                                ),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                              style: const TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 14,
-                              ),
-                              textAlignVertical: TextAlignVertical.center,
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.camera_alt,
-                              color: searchBarIconColor,
-                              size: 30,
-                            ),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (context) => const SelectMealScreen(),
-                                ),
-                              );
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 
@@ -684,8 +716,8 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
               ),
               IconButton(
                 icon: Icon(Icons.edit, color: darkerBlue70Opacity, size: 20),
-                onPressed: () {
-                  Navigator.push(
+                onPressed: () async {
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder:
@@ -695,6 +727,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                           ),
                     ),
                   );
+                  _fetchFoodLogs();
                 },
               ),
             ],
@@ -728,7 +761,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                             ),
                           ),
                           Text(
-                            '${meal.calories.toStringAsFixed(1)} kkal', // UBAH: Format desimal
+                            '${meal.calories.toStringAsFixed(1)} kkal',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -745,9 +778,9 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
           SizedBox(
             width: double.infinity,
             child: TextButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 debugPrint('Tambah Makanan untuk $mealType');
-                Navigator.push(
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder:
@@ -755,6 +788,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                             AddMealManualScreen(initialMealType: mealType),
                   ),
                 );
+                _fetchFoodLogs();
               },
               icon: Icon(
                 Icons.add_circle_outline,

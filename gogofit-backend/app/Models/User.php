@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\FoodLog; // BARU: Import FoodLog model
 
 class User extends Authenticatable
 {
@@ -19,7 +20,7 @@ class User extends Authenticatable
         'birth_date',
         'height',
         'weight',
-        'target_weight', // BARU: Tambahkan kolom ini ke fillable
+        'target_weight',
         'goal',
     ];
 
@@ -31,8 +32,16 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'birth_date' => 'date',
-        'height' => 'float', // BARU: Cast sebagai float
-        'weight' => 'float', // BARU: Cast sebagai float
-        'target_weight' => 'float', // BARU: Cast sebagai float
+        'height' => 'float',
+        'weight' => 'float',
+        'target_weight' => 'float',
     ];
+
+    /**
+     * Get the food logs for the user.
+     */
+    public function foodLogs()
+    {
+        return $this->hasMany(FoodLog::class);
+    }
 }
