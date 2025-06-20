@@ -1,10 +1,11 @@
 // lib/screens/add_meal_manual_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Import ini untuk FilteringTextInputFormatter
-import '../models/meal_data.dart';
-import '../models/notification_data.dart';
-import 'package:gogofit_frontend/services/notification_service.dart';
+import '../models/meal_data.dart'; // Mengandung MealEntry dan userMeals
+import '../models/notification_data.dart'; // Mengandung AppNotification dan fungsi notifikasi
+// import 'package:gogofit_frontend/services/notification_service.dart'; // Mengandung NotificationService
 import 'package:gogofit_frontend/screens/dashboard_screen.dart'; // Import DashboardScreen
+import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
 
 class AddMealManualScreen extends StatefulWidget {
   final String? initialMealType;
@@ -56,6 +57,9 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
   final double _calorieTolerance = 50.0;
   final double _sugarTolerance = 0.0;
 
+  final ApiService _apiService = ApiService(); // Inisialisasi ApiService
+  bool _isSaving = false; // State untuk loading saat menyimpan
+
   @override
   void initState() {
     super.initState();
@@ -75,9 +79,29 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
     } else {
       _selectedMealType = widget.initialMealType ?? 'Sarapan';
     }
+
+    // FIX: Hapus listener di sini untuk memutus potensi infinite loop
   }
 
-  void _saveMeal() {
+  @override
+  void dispose() {
+    _mealNameController.dispose();
+    _caloriesController.dispose();
+    _fatController.dispose();
+    _saturatedFatController.dispose(); // Dispose controller lemak jenuh
+    _carbsController.dispose();
+    _proteinController.dispose();
+    _sugarController.dispose();
+    super.dispose();
+  }
+  // FIX: Hapus fungsi _onUserMealsChanged() karena tidak lagi diperlukan
+  /*
+  void _onUserMealsChanged() {
+    debugPrint("userMeals changed, refetching food logs for DailyLogScreen.");
+  }
+  */
+
+  void _saveMeal() async {
     if (_mealNameController.text.isEmpty || _caloriesController.text.isEmpty) {
       _showAlertDialog('Error', 'Nama Makanan dan Kalori harus diisi.');
       return;
@@ -103,47 +127,134 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
 
     final String name = _mealNameController.text;
 
-    if (_isEditing) {
-      final updatedMeal = widget.mealToEdit!.copyWith(
-        name: name,
-        calories: calories,
-        fat: fat,
-        saturatedFat: saturatedFat,
-        carbs: carbs,
-        protein: protein,
-        sugar: sugar,
-        mealType: _selectedMealType,
-      );
-      updateMealEntry(updatedMeal);
-      debugPrint('Updated Meal: ${updatedMeal.toJson()}');
-      _checkAndAddNotifications(updatedMeal);
-      _showAlertDialog('Sukses', 'Santapan berhasil diperbarui!', () {
-        Navigator.pop(context);
-      });
-    } else {
-      final newMeal = MealEntry(
-        name: name,
-        calories: calories,
-        fat: fat,
-        saturatedFat: saturatedFat,
-        carbs: carbs,
-        protein: protein,
-        sugar: sugar,
-        timestamp: DateTime.now(),
-        mealType: _selectedMealType,
-      );
-      userMeals.value = [...userMeals.value, newMeal];
-      debugPrint('Added Meal: ${newMeal.toJson()}');
-      _checkAndAddNotifications(newMeal);
-      _showAlertDialog('Sukses', 'Santapan berhasil ditambahkan!', () {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
-          (Route<dynamic> route) => false,
+    setState(() {
+      _isSaving = true; // Set isSaving true
+    });
+
+    try {
+      if (_isEditing) {
+        final updatedMealPayload = MealEntry(
+          // Gunakan mealToEdit.id yang sudah ada
+          id: widget.mealToEdit!.id, // PASTIKAN ID ADA DI SINI
+          name: name,
+          calories: calories,
+          fat: fat,
+          saturatedFat: saturatedFat,
+          carbs: carbs,
+          protein: protein,
+          sugar: sugar,
+          timestamp: widget.mealToEdit!.timestamp, // Pertahankan timestamp asli
+          mealType: _selectedMealType,
         );
+
+        // UBAH: Panggil API updateFoodLog dengan objek MealEntry yang lengkap
+        final response = await _apiService.updateFoodLog(updatedMealPayload);
+
+        if (!mounted) return;
+        if (response['success']) {
+          // Asumsi response['log'] mengembalikan MealEntry yang diperbarui dari BE
+          // Jika tidak, Anda perlu mengubah ini.
+          // MealEntry updatedMealFromBE = MealEntry.fromJson(response['log']);
+
+          // FIX: Perbarui MealEntry di userMeals dengan objek MealEntry yang sudah di-update
+          updateMealEntry(updatedMealPayload);
+
+          debugPrint('Updated Meal: ${updatedMealPayload.toJson()}');
+          _checkAndAddNotifications(updatedMealPayload);
+          _showAlertDialog('Sukses', 'Santapan berhasil diperbarui!', () {
+            if (!mounted) return;
+            Navigator.pop(context); // Kembali ke EditMealListScreen
+          });
+        } else {
+          _showAlertDialog(
+            'Error',
+            response['message'] ?? 'Gagal memperbarui santapan.',
+          );
+        }
+      } else {
+        final newMealPayload = MealEntry(
+          // ID akan di-generate oleh backend, jadi tidak perlu di sini pada payload awal
+          name: name,
+          calories: calories,
+          fat: fat,
+          saturatedFat: saturatedFat,
+          carbs: carbs,
+          protein: protein,
+          sugar: sugar,
+          timestamp: DateTime.now(), // Gunakan waktu saat ini
+          mealType: _selectedMealType,
+        );
+
+        // UBAH: Panggil API addFoodLog
+        final response = await _apiService.addFoodLog(newMealPayload);
+
+        if (!mounted) return;
+        if (response['success']) {
+          // Asumsi response['log'] mengembalikan MealEntry baru dengan ID dari BE
+          final MealEntry newMealFromBE = MealEntry.fromJson(
+            response['log'],
+          ); // Dapatkan MealEntry dengan ID dari BE
+
+          // FIX: Tambahkan MealEntry baru dengan ID dari backend ke userMeals
+          userMeals.value = [...userMeals.value, newMealFromBE];
+
+          debugPrint('Added Meal (from BE): ${newMealFromBE.toJson()}');
+          _checkAndAddNotifications(newMealFromBE);
+          _showAlertDialog('Sukses', 'Santapan berhasil ditambahkan!', () {
+            if (!mounted) return;
+            // Kembali ke DashboardScreen setelah tambah (atau pop jika alurnya lebih fleksibel)
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              (Route<dynamic> route) => false,
+            );
+          });
+        } else {
+          _showAlertDialog(
+            'Error',
+            response['message'] ?? 'Gagal menambahkan santapan.',
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('Save Meal Error: $e');
+      _showAlertDialog(
+        'Error',
+        'Terjadi kesalahan saat menyimpan santapan: $e',
+      );
+    } finally {
+      setState(() {
+        _isSaving = false; // Set isSaving false di finally
       });
     }
   }
+
+  double calculateTotalCalories() {
+    return userMeals.value
+        .where(
+          (meal) =>
+              meal.timestamp.year == DateTime.now().year &&
+              meal.timestamp.month == DateTime.now().month &&
+              meal.timestamp.day == DateTime.now().day,
+        )
+        .fold(0.0, (sum, meal) => sum + meal.calories);
+  }
+
+  double calculateTotalSugar() {
+    return userMeals.value
+        .where(
+          (meal) =>
+              meal.timestamp.year == DateTime.now().year &&
+              meal.timestamp.month == DateTime.now().month &&
+              meal.timestamp.day == DateTime.now().day,
+        )
+        .fold(0.0, (sum, meal) => sum + meal.sugar);
+  }
+
+  // Asumsi hasSpecificNotificationForToday, addNotification, removeSpecificNotificationForToday
+  // adalah fungsi global yang berasal dari notification_data.dart
+  // Asumsi notificationService berasal dari services/notification_service.dart
 
   void _checkAndAddNotifications(MealEntry currentMeal) async {
     final double totalCalories = calculateTotalCalories();
@@ -230,6 +341,10 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           ),
         );
         debugPrint('Notifikasi: Target Kalori Tercapai ditambahkan!');
+        // FIX: Hapus pemanggilan notifikasi lokal yang bermasalah.
+        // Jika Anda ingin mengaktifkannya nanti, Anda harus menyediakan
+        // 'flutterLocalNotificationsPlugin' ke NotificationService.
+        /*
         await notificationService.showLocalNotification(
           id: 100,
           title: 'Target Kalori Tercapai!',
@@ -239,6 +354,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           channelDescription: 'Notifikasi untuk pencapaian target kalori',
           payload: 'calorie_achievement_payload',
         );
+        */
       } else {
         debugPrint(
           'DEBUG Notif Check: Notif Target Kalori Tercapai sudah ada untuk hari ini. Tidak ditambahkan duplikat.',
@@ -260,6 +376,8 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           ),
         );
         debugPrint('Notifikasi: Kelebihan Kalori ditambahkan!');
+        // FIX: Hapus pemanggilan notifikasi lokal yang bermasalah.
+        /*
         await notificationService.showLocalNotification(
           id: 0,
           title: 'Peringatan Kalori Berlebih!',
@@ -269,6 +387,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           channelDescription: 'Notifikasi untuk peringatan kalori berlebih',
           payload: 'calorie_warning_payload',
         );
+        */
       } else {
         debugPrint(
           'DEBUG Notif Check: Notif Peringatan Kalori Berlebih sudah ada untuk hari ini. Tidak ditambahkan duplikat.',
@@ -293,6 +412,8 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           ),
         );
         debugPrint('Notifikasi: Target Gula Tercapai ditambahkan!');
+        // FIX: Hapus pemanggilan notifikasi lokal yang bermasalah.
+        /*
         await notificationService.showLocalNotification(
           id: 101,
           title: 'Target Gula Tercapai!',
@@ -302,6 +423,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           channelDescription: 'Notifikasi untuk pencapaian target gula',
           payload: 'sugar_achievement_payload',
         );
+        */
       } else {
         debugPrint(
           'DEBUG Notif Check: Notif Target Gula Tercapai sudah ada untuk hari ini. Tidak ditambahkan duplikat.',
@@ -323,6 +445,8 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           ),
         );
         debugPrint('Notifikasi: Kelebihan Gula ditambahkan!');
+        // FIX: Hapus pemanggilan notifikasi lokal yang bermasalah.
+        /*
         await notificationService.showLocalNotification(
           id: 1,
           title: 'Peringatan Gula Berlebih!',
@@ -332,6 +456,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           channelDescription: 'Notifikasi untuk peringatan gula berlebih',
           payload: 'sugar_warning_payload',
         );
+        */
       } else {
         debugPrint(
           'DEBUG Notif Check: Notif Peringatan Gula Berlebih sudah ada untuk hari ini. Tidak ditambahkan duplikat.',
@@ -372,6 +497,8 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
     );
   }
 
+  // FIX: HAPUS DUPLIKAT FUNGSI dispose() INI
+  /*
   @override
   void dispose() {
     _mealNameController.dispose();
@@ -383,6 +510,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
     _sugarController.dispose();
     super.dispose();
   }
+  */
 
   @override
   Widget build(BuildContext context) {
@@ -408,145 +536,179 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Dropdown Santapan
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: accentBlueWithOpacity20,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: accentBlueColor),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: _selectedMealType,
-                  icon: Icon(Icons.keyboard_arrow_down, color: darkerBlue),
-                  style: TextStyle(
-                    color: darkerBlue,
-                    fontSize: 16,
-                    fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w500,
-                  ),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedMealType = newValue!;
-                    });
-                    debugPrint('Santapan selected: $newValue');
-                  },
-                  items:
-                      <String>[
-                        'Sarapan',
-                        'Makan Siang',
-                        'Makan Malam',
-                        'Camilan',
-                      ].map<DropdownMenuItem<String>>((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
-                ),
-              ),
-            ),
+      body:
+          _isSaving // BARU: Tampilkan CircularProgressIndicator saat _isSaving true
+              ? const Center(
+                child: CircularProgressIndicator(color: Colors.blueAccent),
+              )
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Dropdown Santapan
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: accentBlueWithOpacity20,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: accentBlueColor),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: _selectedMealType,
+                          icon: Icon(
+                            Icons.keyboard_arrow_down,
+                            color: darkerBlue,
+                          ),
+                          style: TextStyle(
+                            color: darkerBlue,
+                            fontSize: 16,
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w500,
+                          ),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _selectedMealType = newValue!;
+                            });
+                            debugPrint('Santapan selected: $newValue');
+                          },
+                          items:
+                              <String>[
+                                'Sarapan',
+                                'Makan Siang',
+                                'Makan Malam',
+                                'Camilan',
+                              ].map<DropdownMenuItem<String>>((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                        ),
+                      ),
+                    ),
 
-            // Form Input Makanan
-            _buildInputField(
-              'Nama Makanan',
-              'Contoh: Nasi Goreng', // Hint lebih pendek
-              _mealNameController,
-              keyboardType: TextInputType.text,
-            ),
-            _buildInputField(
-              'Kalori (kkal)', // Label lebih jelas
-              'Ex: 320.5', // Hint lebih pendek dan contoh
-              _caloriesController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-            ),
-            _buildInputField(
-              'Lemak total (gr)', // Label lebih jelas
-              'Ex: 25.0', // Hint lebih pendek dan contoh
-              _fatController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-            ),
-            _buildInputField(
-              'Lemak jenuh (gr)', // Label lebih jelas
-              'Ex: 8.0 (opsional)', // Hint lebih pendek, contoh, dan opsional
-              _saturatedFatController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-            ),
-            _buildInputField(
-              'Karbohidrat (gr)', // Label lebih jelas
-              'Ex: 10.0', // Hint lebih pendek dan contoh
-              _carbsController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-            ),
-            _buildInputField(
-              'Protein (gr)', // Label lebih jelas
-              'Ex: 20.0', // Hint lebih pendek dan contoh
-              _proteinController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-            ),
-            _buildInputField(
-              'Gula (gr)', // Label lebih jelas
-              'Ex: 0.5', // Hint lebih pendek dan contoh
-              _sugarController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-            ),
+                    // Form Input Makanan
+                    _buildInputField(
+                      'Nama Makanan',
+                      'Contoh: Nasi Goreng',
+                      _mealNameController,
+                      keyboardType: TextInputType.text,
+                    ),
+                    _buildInputField(
+                      'Kalori (kkal)',
+                      'Ex: 320.5',
+                      _caloriesController,
+                      keyboardType: TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
+                      ],
+                    ),
+                    _buildInputField(
+                      'Lemak total (gr)',
+                      'Ex: 25.0',
+                      _fatController,
+                      keyboardType: TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
+                      ],
+                    ),
+                    _buildInputField(
+                      'Lemak jenuh (gr)',
+                      'Ex: 8.0 (opsional)',
+                      _saturatedFatController,
+                      keyboardType: TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
+                      ],
+                    ),
+                    _buildInputField(
+                      'Karbohidrat (gr)',
+                      'Ex: 10.0',
+                      _carbsController,
+                      keyboardType: TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
+                      ],
+                    ),
+                    _buildInputField(
+                      'Protein (gr)',
+                      'Ex: 20.0',
+                      _proteinController,
+                      keyboardType: TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
+                      ],
+                    ),
+                    _buildInputField(
+                      'Gula (gr)',
+                      'Ex: 0.5',
+                      _sugarController,
+                      keyboardType: TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d*'),
+                        ),
+                      ],
+                    ),
 
-            const SizedBox(height: 30), // Padding atas tombol
-            // Tombol Simpan/Perbarui Santapan
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _saveMeal,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accentBlueColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 5,
-                  shadowColor: blackWithOpacity20,
-                ),
-                child: Text(
-                  _isEditing ? 'Perbarui Santapan' : 'Tambahkan Santapan',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Poppins',
-                  ),
+                    const SizedBox(height: 30),
+                    // Tombol Simpan/Perbarui Santapan
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: _saveMeal,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: accentBlueColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 5,
+                          shadowColor: blackWithOpacity20,
+                        ),
+                        child: Text(
+                          _isEditing
+                              ? 'Perbarui Santapan'
+                              : 'Tambahkan Santapan',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 30), // Padding bawah tombol
-          ],
-        ),
-      ),
     );
   }
 

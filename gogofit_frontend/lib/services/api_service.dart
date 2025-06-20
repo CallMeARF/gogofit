@@ -140,7 +140,6 @@ class ApiService {
   }
 
   // Login pengguna
-  // FIX: Tambahkan parameter rememberMe
   Future<Map<String, dynamic>> login(
     String email,
     String password, {
@@ -156,18 +155,10 @@ class ApiService {
     if (response.statusCode == 200) {
       final token = responseBody['token'];
       if (token != null) {
-        // FIX: Hanya simpan token jika rememberMe true
         if (rememberMe) {
           await AuthTokenManager.setAuthToken(token);
         } else {
-          // Jika rememberMe false, pastikan token lama dihapus (jika ada) dan jangan simpan yang baru.
-          // Untuk sesi non-persisten, aplikasi perlu token untuk permintaan API langsung,
-          // tetapi tidak akan diselamatkan di SharedPreferences.
-          // Saat ini, AuthTokenManager hanya menyimpan/menghapus.
-          // Anda mungkin perlu logika lebih kompleks untuk token sementara.
-          // Untuk demo ini, kita hanya akan skip `setAuthToken` jika rememberMe false.
           debugPrint('Remember Me is false, token not saved persistently.');
-          // Asumsi: jika token tidak disimpan, aplikasi akan re-login saat restart.
         }
       }
       return {
@@ -217,7 +208,6 @@ class ApiService {
     if (response.statusCode == 201) {
       final token = responseBody['token'];
       if (token != null) {
-        // Untuk register, sesi akan selalu persisten secara default
         await AuthTokenManager.setAuthToken(token);
       }
       return {
@@ -361,15 +351,19 @@ class ApiService {
   }
 
   // --- API untuk Food Logs ---
+  // Pastikan backend mengembalikan object MealEntry yang lengkap (termasuk ID)
+  // di dalam 'data' key untuk status code 201.
   Future<Map<String, dynamic>> addFoodLog(MealEntry meal) async {
     final response = await post('food-logs', meal.toJson());
     final responseBody = jsonDecode(response.body);
 
     if (response.statusCode == 201) {
+      // FIX: Pastikan 'responseBody['data']' benar-benar berisi MealEntry JSON.
       return {
         'success': true,
         'message': responseBody['message'],
-        'log': responseBody['data'],
+        'log':
+            responseBody['data'], // HARUS berisi MealEntry yang lengkap dengan ID
       };
     } else {
       debugPrint(
@@ -397,24 +391,62 @@ class ApiService {
       debugPrint(
         'Failed to get food logs: ${response.statusCode} ${response.body}',
       );
+      // Jika terjadi 401 Unauthorized, mungkin juga perlu clear token
+      if (response.statusCode == 401) {
+        await AuthTokenManager.clearAuthToken();
+        // Anda mungkin juga ingin memicu navigasi ke LoginScreen di sini
+      }
       return [];
     }
   }
 
+  // Pastikan backend mengembalikan object MealEntry yang lengkap (termasuk ID)
+  // di dalam 'data' key untuk status code 200.
   Future<Map<String, dynamic>> updateFoodLog(MealEntry meal) async {
+    // FIX: Pastikan meal.id tidak null saat update
+    // Karena MealEntry.id sekarang adalah String?, perlu cek nullability.
+    // Jika null, ini adalah error di sisi Flutter yang mengirim objek tanpa ID.
+    if (meal.id == null) {
+      debugPrint('Error: Attempted to update food log with null ID.');
+      return {
+        'success': false,
+        'message':
+            'Tidak dapat memperbarui santapan: ID tidak ditemukan (ID null).',
+      };
+    }
     final response = await put('food-logs/${meal.id}', meal.toJson());
     final responseBody = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
+      // FIX: Pastikan 'responseBody['data']' benar-benar berisi MealEntry JSON.
       return {
         'success': true,
         'message': responseBody['message'],
-        'log': responseBody['data'],
+        'log':
+            responseBody['data'], // HARUS berisi MealEntry yang lengkap dengan ID
       };
     } else {
       debugPrint(
         'Failed to update food log: ${response.statusCode} ${response.body}',
       );
+      // Jika status code 404 (Not Found), ini cocok dengan error "No query results"
+      if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'message':
+              'Santapan tidak ditemukan di server. Mungkin sudah dihapus.',
+          'statusCode':
+              404, // Tambahkan statusCode untuk penanganan lebih lanjut
+        };
+      } else if (response.statusCode == 401) {
+        // Tambahkan penanganan Unauthorized
+        await AuthTokenManager.clearAuthToken();
+        return {
+          'success': false,
+          'message': 'Autentikasi gagal. Silakan login kembali.',
+          'statusCode': 401,
+        };
+      }
       return {
         'success': false,
         'message': responseBody['message'] ?? 'Failed to update food log.',
@@ -423,6 +455,11 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> deleteFoodLog(String id) async {
+    // FIX: Menghapus pengecekan `id == null` karena parameter `id` sudah `String` (non-nullable)
+    // Jika Anda ingin mengizinkan ID null di sini, ubah `String id` menjadi `String? id`.
+    // Tetapi dalam kasus delete, ID tidak boleh null.
+    // Jadi, tidak perlu pengecekan lagi karena Dart sudah menjaminnya.
+
     final response = await delete('food-logs/$id');
     final responseBody = jsonDecode(response.body);
 
@@ -432,6 +469,23 @@ class ApiService {
       debugPrint(
         'Failed to delete food log: ${response.statusCode} ${response.body}',
       );
+      // Jika status code 404 (Not Found), ini cocok dengan error "No query results"
+      if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'message':
+              'Santapan tidak ditemukan di server. Mungkin sudah dihapus.',
+          'statusCode': 404,
+        };
+      } else if (response.statusCode == 401) {
+        // Tambahkan penanganan Unauthorized
+        await AuthTokenManager.clearAuthToken();
+        return {
+          'success': false,
+          'message': 'Autentikasi gagal. Silakan login kembali.',
+          'statusCode': 401,
+        };
+      }
       return {
         'success': false,
         'message': responseBody['message'] ?? 'Failed to delete food log.',

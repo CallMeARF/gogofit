@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:gogofit_frontend/models/meal_data.dart'; // Import meal_data.dart
 import 'package:gogofit_frontend/screens/add_meal_manual_screen.dart'; // Import AddMealManualScreen
 import 'package:gogofit_frontend/models/notification_data.dart'; // Import notification_data.dart
-import 'package:gogofit_frontend/services/notification_service.dart'; // Import NotificationService
+// import 'package:gogofit_frontend/services/notification_service.dart'; // Import NotificationService
+import 'package:gogofit_frontend/services/api_service.dart'; // BARU: Import ApiService
 
 class EditMealListScreen extends StatefulWidget {
   final String mealType;
@@ -24,13 +25,15 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
   final Color primaryBlueNormal = const Color(0xFF015c91);
   final Color darkerBlue = const Color(0xFF002033);
   final Color accentBlueColor = const Color(0xFF015c91);
-  final Color alertRedColor = const Color(0xFFEF5350); // Tambahkan warna ini
+  final Color alertRedColor = const Color(0xFFEF5350);
 
-  // Menggunakan getter untuk warna opacity
-  Color white70Opacity() => const Color.fromARGB(179, 255, 255, 255);
-  Color darkerBlue60Opacity() => const Color.fromARGB(153, 0, 32, 51);
+  // FIX: Menggunakan final Color untuk konsistensi dan performa
+  final Color white70Opacity = const Color.fromARGB(179, 255, 255, 255);
+  final Color darkerBlue60Opacity = const Color.fromARGB(153, 0, 32, 51);
 
   List<MealEntry> _mealsToEdit = [];
+  bool _isLoading = false; // State untuk loading
+  final ApiService _apiService = ApiService(); // Inisialisasi ApiService
 
   // Target Kalori dan Gula (sesuai dengan yang ada di Dashboard/AddMealManual)
   final double _targetDailyCalories = 1340.0;
@@ -44,19 +47,22 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
   void initState() {
     super.initState();
     _filterMeals();
-    userMeals.addListener(_onMealsChanged); // Gunakan listener baru
+    // FIX: Aktifkan listener userMeals kembali
+    userMeals.addListener(_onMealsChanged);
   }
 
   @override
   void dispose() {
-    userMeals.removeListener(_onMealsChanged); // Hapus listener baru
+    // FIX: Hapus listener saat dispose
+    userMeals.removeListener(_onMealsChanged);
     super.dispose();
   }
 
   // Listener yang akan dipanggil saat userMeals berubah
   void _onMealsChanged() {
-    _filterMeals(); // Perbarui daftar makanan yang ditampilkan
-    _checkAndManageNotifications(); // Panggil logika notifikasi setelah perubahan
+    debugPrint("userMeals changed in EditMealListScreen, re-filtering meals.");
+    _filterMeals();
+    _checkAndManageNotifications();
   }
 
   void _filterMeals() {
@@ -77,12 +83,9 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
 
   // Logika notifikasi yang disalin dan disesuaikan dari AddMealManualScreen
   void _checkAndManageNotifications() async {
-    // Pastikan ini menghitung total kalori dan gula untuk HARI INI
-    // karena notifikasi harian berlaku untuk hari ini
     final double totalCalories = calculateTotalCalories();
     final double totalSugar = calculateTotalSugar();
 
-    // Hitung kalori bersih yang relevan untuk notifikasi kalori
     double netCaloriesForNotifications =
         totalCalories - _burnedCaloriesFromExercise;
 
@@ -94,7 +97,6 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
     );
 
     // --- LOGIKA PENGHAPUSAN NOTIFIKASI YANG TIDAK RELEVAN ---
-    // Hapus notifikasi "berlebih" kalori jika sudah tidak berlebih lagi
     if (netCaloriesForNotifications <=
             _targetDailyCalories + _calorieTolerance &&
         hasSpecificNotificationForToday(
@@ -109,7 +111,6 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
         'Notifikasi: Peringatan Kalori Berlebih dihapus karena sudah tidak berlebih (dari EditMealList).',
       );
     }
-    // Hapus notifikasi "tercapai" kalori jika sudah tidak dalam rentang tercapai
     if (!(netCaloriesForNotifications >=
                 _targetDailyCalories - _calorieTolerance &&
             netCaloriesForNotifications <=
@@ -127,7 +128,6 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
       );
     }
 
-    // Hapus notifikasi "berlebih" gula jika sudah tidak berlebih lagi
     if (totalSugar <= _targetDailySugar + _sugarTolerance &&
         hasSpecificNotificationForToday(
           'Peringatan Gula Berlebih!',
@@ -141,7 +141,6 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
         'Notifikasi: Peringatan Gula Berlebih dihapus karena sudah tidak berlebih (from EditMealList).',
       );
     }
-    // Hapus notifikasi "tercapai" gula jika sudah tidak dalam rentang tercapai
     if (!((totalSugar - _targetDailySugar).abs() < 0.001) &&
         hasSpecificNotificationForToday(
           'Target Gula Tercapai!',
@@ -176,6 +175,8 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
             type: NotificationType.achievement,
           ),
         );
+        // FIX: Komen out pemanggilan notifikasi lokal
+        /*
         await notificationService.showLocalNotification(
           id: 100,
           title: 'Target Kalori Tercapai!',
@@ -185,6 +186,7 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
           channelDescription: 'Notifikasi untuk pencapaian target kalori',
           payload: 'calorie_achievement_payload',
         );
+        */
         debugPrint(
           'Notifikasi: Target Kalori Tercapai ditambahkan (from EditMealList)!',
         );
@@ -206,6 +208,8 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
             type: NotificationType.warning,
           ),
         );
+        // FIX: Komen out pemanggilan notifikasi lokal
+        /*
         await notificationService.showLocalNotification(
           id: 0,
           title: 'Peringatan Kalori Berlebih!',
@@ -215,6 +219,7 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
           channelDescription: 'Notifikasi untuk peringatan kalori berlebih',
           payload: 'calorie_warning_payload',
         );
+        */
         debugPrint(
           'Notifikasi: Kelebihan Kalori ditambahkan (from EditMealList)!',
         );
@@ -235,6 +240,8 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
             type: NotificationType.achievement,
           ),
         );
+        // FIX: Komen out pemanggilan notifikasi lokal
+        /*
         await notificationService.showLocalNotification(
           id: 101,
           title: 'Target Gula Tercapai!',
@@ -244,6 +251,7 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
           channelDescription: 'Notifikasi untuk pencapaian target gula',
           payload: 'sugar_achievement_payload',
         );
+        */
         debugPrint(
           'Notifikasi: Target Gula Tercapai ditambahkan (from EditMealList)!',
         );
@@ -264,6 +272,8 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
             type: NotificationType.warning,
           ),
         );
+        // FIX: Komen out pemanggilan notifikasi lokal
+        /*
         await notificationService.showLocalNotification(
           id: 1,
           title: 'Peringatan Gula Berlebih!',
@@ -273,6 +283,7 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
           channelDescription: 'Notifikasi untuk peringatan gula berlebih',
           payload: 'sugar_warning_payload',
         );
+        */
         debugPrint(
           'Notifikasi: Kelebihan Gula ditambahkan (from EditMealList)!',
         );
@@ -280,6 +291,7 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
     }
   }
 
+  // Fungsi untuk mengkonfirmasi dan menghapus MealEntry
   void _confirmDeleteMeal(MealEntry meal) {
     showDialog(
       context: context,
@@ -311,16 +323,54 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
                 'Hapus',
                 style: TextStyle(fontFamily: 'Poppins', color: Colors.red),
               ),
-              onPressed: () {
-                deleteMealEntry(
-                  meal.id,
-                ); // Panggil fungsi delete dari meal_data.dart
+              onPressed: () async {
                 Navigator.of(dialogContext).pop(); // Tutup dialog
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${meal.name} berhasil dihapus.')),
-                );
-                // NOTIFIKASI: _onMealsChanged akan dipanggil via listener,
-                // yang kemudian akan memanggil _checkAndManageNotifications()
+                setState(() {
+                  _isLoading = true;
+                }); // Tampilkan loading
+                try {
+                  // Panggil API deleteFoodLog
+                  // FIX (Ln 321): Tambahkan null-check operator (!) atau pastikan meal.id tidak null
+                  final response = await _apiService.deleteFoodLog(meal.id!);
+
+                  if (!mounted) return;
+                  if (response['success']) {
+                    // FIX (Ln 327): Tambahkan null-check operator (!) atau pastikan meal.id tidak null
+                    deleteMealEntry(
+                      meal.id!,
+                    ); // Ini memicu listener _onMealsChanged
+                    _checkAndManageNotifications(); // Perbarui notifikasi setelah hapus
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${meal.name} berhasil dihapus.')),
+                    );
+                    // Tidak perlu pop dari EditMealListScreen, _onMealsChanged akan me-rebuild UI ini
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          response['message'] ?? 'Gagal menghapus santapan.',
+                        ),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  debugPrint('Delete Meal Error: $e');
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Terjadi kesalahan saat menghapus santapan: $e',
+                      ),
+                    ),
+                  );
+                } finally {
+                  // FIX (Ln 354): Hapus 'return;' dari blok finally
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    }); // Sembunyikan loading
+                  }
+                }
               },
             ),
           ],
@@ -329,8 +379,8 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
     );
   }
 
-  void _editSpecificMeal(MealEntry meal) {
-    Navigator.push(
+  void _editSpecificMeal(MealEntry meal) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder:
@@ -339,6 +389,9 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
             ), // Kirim objek meal untuk diedit
       ),
     );
+    // Setelah kembali dari AddMealManualScreen (setelah edit), _onMealsChanged akan memicu refresh
+    // _filterMeals(); // Tidak perlu panggil manual karena listener _onMealsChanged akan melakukannya
+    // _checkAndManageNotifications(); // Tidak perlu panggil manual karena listener _onMealsChanged akan melakukannya
   }
 
   @override
@@ -366,14 +419,19 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
         ),
       ),
       body:
-          _mealsToEdit.isEmpty
+          _isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: Colors.blueAccent),
+              )
+              : _mealsToEdit.isEmpty
               ? Center(
                 child: Text(
                   'Tidak ada makanan di sesi ${widget.mealType} untuk tanggal ini.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
-                    color: darkerBlue60Opacity(),
+                    color:
+                        darkerBlue60Opacity, // FIX: Gunakan properti langsung
                     fontFamily: 'Poppins',
                   ),
                 ),
@@ -411,7 +469,8 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
                                   // Menggunakan toStringAsFixed(1) untuk kalori dan gula
                                   '${meal.calories.toStringAsFixed(1)} kkal, ${meal.sugar.toStringAsFixed(1)} gr gula',
                                   style: TextStyle(
-                                    color: white70Opacity(),
+                                    color:
+                                        white70Opacity, // FIX: Gunakan properti langsung
                                     fontSize: 14,
                                     fontFamily: 'Poppins',
                                   ),
