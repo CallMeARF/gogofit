@@ -1,14 +1,16 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:gogofit_frontend/screens/splash_screen.dart'; // Import SplashScreen
 import 'package:gogofit_frontend/models/notification_data.dart'; // Import notification_data.dart
 import 'package:intl/date_symbol_data_local.dart'; // Untuk inisialisasi locale Int
+import 'package:gogofit_frontend/services/api_service.dart'; // BARU: Import ApiService
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id', null);
   addDummyNotifications();
-  runApp(const MyApp()); // MyApp tidak perlu parameter isLoggedIn lagi
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -117,6 +119,7 @@ class MyApp extends StatelessWidget {
 
       home: const SplashScreen(), // Selalu mulai dari SplashScreen
       debugShowCheckedModeBanner: false,
+      navigatorKey: ApiService.navigatorKey, // BARU: Menambahkan navigatorKey
     );
   }
 }

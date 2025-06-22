@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Password; // BARU: Import Facade Password
+use Illuminate\Contracts\Auth\PasswordBroker; // BARU: Import PasswordBroker untuk type hinting
 
 class AuthController extends Controller
 {
@@ -118,7 +120,9 @@ class AuthController extends Controller
         return response()->json($this->mapUserToFlutterResponse($user));
     }
 
-    // BARU: Metode untuk mengubah password pengguna
+    /**
+     * BARU: Metode untuk mengubah password pengguna
+     */
     public function changePassword(Request $request)
     {
         $request->validate([
@@ -144,6 +148,36 @@ class AuthController extends Controller
         // $user->tokens()->delete(); 
 
         return response()->json(['message' => 'Kata sandi berhasil diubah.']);
+    }
+
+    /**
+     * BARU: Metode untuk menangani permintaan forgot password (mengirim email reset link).
+     * Ini adalah endpoint API yang akan dipanggil dari Flutter.
+     */
+    public function forgotPassword(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+
+        // Menggunakan broker password default
+        $response = Password::broker()->sendResetLink(
+            $request->only('email')
+        );
+
+        // Menentukan pesan respons berdasarkan hasil pengiriman link reset
+        if ($response == Password::RESET_LINK_SENT) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Tautan reset kata sandi telah dikirim ke email Anda.',
+            ], 200);
+        } else {
+            // Jika ada masalah (misal, email tidak terdaftar, atau gagal kirim email)
+            // Laravel akan mengembalikan Password::INVALID_USER atau Password::RESET_THROTTLED.
+            // Kita bisa mengembalikan pesan error yang sesuai.
+            return response()->json([
+                'success' => false,
+                'message' => trans($response), // Menggunakan trans() untuk menerjemahkan pesan Laravel
+            ], 400); // Bad Request jika gagal
+        }
     }
 
 

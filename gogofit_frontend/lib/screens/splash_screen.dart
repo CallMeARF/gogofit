@@ -1,10 +1,14 @@
+// lib/screens/splash_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:gogofit_frontend/screens/auth/login_screen.dart';
-import 'package:gogofit_frontend/screens/dashboard_screen.dart'; // Import DashboardScreen
-import 'package:gogofit_frontend/services/notification_service.dart'; // Import NotificationService
-import 'package:permission_handler/permission_handler.dart'; // Import permission_handler
-import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService untuk AuthTokenManager
-import 'package:gogofit_frontend/models/user_profile_data.dart'; // BARU: Import UserProfile model dan currentUserProfile
+import 'package:gogofit_frontend/screens/dashboard_screen.dart';
+import 'package:gogofit_frontend/services/notification_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:gogofit_frontend/services/api_service.dart';
+import 'package:gogofit_frontend/services/auth_token_manager.dart'; // BARU: Import AuthTokenManager
+import 'package:gogofit_frontend/models/user_profile_data.dart';
+import 'package:gogofit_frontend/exceptions/unauthorized_exception.dart'; // BARU: Import UnauthorizedException
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -53,8 +57,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
       if (isLoggedIn) {
         try {
+          // Memanggil getUserProfile. Jika token invalid, ApiService akan throw UnauthorizedException
           final userProfile = await ApiService().getUserProfile();
-          if (!mounted) return;
+
+          if (!mounted) return; // Check mounted after await
+
           if (userProfile != null) {
             currentUserProfile.value =
                 userProfile; // Perbarui data profil global
@@ -63,16 +70,26 @@ class _SplashScreenState extends State<SplashScreen> {
             );
             debugPrint("Splash screen selesai, auto-login ke DashboardScreen.");
           } else {
-            await AuthTokenManager.clearAuthToken(); // Hapus token tidak valid
+            // Jika userProfile null, bisa jadi karena ApiService sudah memicu redirect
+            // atau ada masalah lain selain 401. Dalam kasus ini, kita harus ke LoginScreen.
+            await AuthTokenManager.clearAuthToken(); // Pastikan token bersih
             if (!mounted) return;
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (context) => const LoginScreen()),
             );
             debugPrint(
-              "Splash screen selesai, token invalid, mengarahkan ke LoginScreen.",
+              "Splash screen selesai, profil tidak dapat dimuat, mengarahkan ke LoginScreen.",
             );
           }
+        } on UnauthorizedException catch (e) {
+          // Exception ini akan tertangkap jika ApiService mendeteksi 401.
+          // ApiService sudah akan memicu clearToken dan redirect ke LoginScreen.
+          debugPrint(
+            "Splash screen: Caught UnauthorizedException: ${e.message}. Redirect handled by ApiService.",
+          );
+          // Tidak perlu melakukan navigasi lagi di sini karena sudah di-handle oleh ApiService.
         } catch (e) {
+          // Menangkap error lain saat mengambil profil (misalnya, masalah jaringan)
           debugPrint("Error fetching user profile during auto-login: $e");
           await AuthTokenManager.clearAuthToken(); // Hapus token jika ada error
           if (!mounted) return;
@@ -84,6 +101,7 @@ class _SplashScreenState extends State<SplashScreen> {
           );
         }
       } else {
+        // Jika tidak ada token (isLoggedIn false)
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
@@ -92,8 +110,11 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
     } catch (e) {
+      // Menangkap error umum selama inisialisasi aplikasi (di luar API call)
       debugPrint("Error during app initialization: $e");
-      await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(
+        const Duration(seconds: 1),
+      ); // Jeda sebentar sebelum redirect
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
