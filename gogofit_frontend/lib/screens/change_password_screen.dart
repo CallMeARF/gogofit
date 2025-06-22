@@ -1,8 +1,10 @@
-// lib/screens/change_password_screen.dart
+// lib/screens/onboarding/change_password_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
+import 'package:gogofit_frontend/services/auth_token_manager.dart'; // BARU: Import AuthTokenManager
 import 'package:gogofit_frontend/screens/auth/login_screen.dart'; // Untuk navigasi setelah ubah password/logout
+import 'package:gogofit_frontend/exceptions/unauthorized_exception.dart'; // BARU: Import UnauthorizedException
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -23,15 +25,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   final Color primaryBlueNormal = const Color(0xFF015c91);
   final Color darkerBlue = const Color(0xFF002033);
-  final Color lightBlueCardBackground = const Color(
-    0xFFD9E7EF,
-  ); // Warna untuk tombol/background lain
-  final Color accentBlueColor = const Color(
-    0xFF015c91,
-  ); // Warna aksen untuk border/focus
+  final Color lightBlueCardBackground = const Color(0xFFD9E7EF);
+  final Color accentBlueColor = const Color(0xFF015c91);
 
-  final ApiService _apiService = ApiService(); // Inisialisasi ApiService
-  bool _isLoading = false; // State untuk loading saat submit
+  final ApiService _apiService = ApiService();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -67,18 +65,16 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     }
 
     setState(() {
-      _isLoading = true; // Mulai loading
+      _isLoading = true;
     });
 
     try {
-      // FIX: Implementasi panggilan API ke backend Laravel untuk mengubah password
       final response = await _apiService.changePassword(
         oldPassword: oldPassword,
         newPassword: newPassword,
         newPasswordConfirmation: confirmNewPassword,
       );
 
-      // Cek mounted setelah await
       if (!mounted) return;
 
       if (response['success']) {
@@ -88,8 +84,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               'Kata sandi berhasil diubah! Silakan login kembali.',
           () async {
             if (!mounted) return;
-            // Setelah ubah password, log out pengguna dan arahkan ke login
-            await AuthTokenManager.clearAuthToken(); // Hapus token
+            // Penting: Setelah ubah password, server mungkin membatalkan token lama.
+            // Maka, kita harus logout pengguna dan arahkan ke login.
+            // ApiService._sendRequest sudah menangani 401 dan redirect jika token invalid.
+            // Namun, jika backend secara eksplisit meminta logout setelah perubahan password,
+            // kita bisa melakukan clear token dan redirect di sini juga.
+            // Untuk memastikan, kita panggil clearAuthToken dan redirect secara manual.
+            await AuthTokenManager.clearAuthToken(); // Hapus token dari penyimpanan
             if (!mounted) return;
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -104,16 +105,23 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               'Gagal mengubah kata sandi. Periksa kata sandi lama Anda atau coba lagi.',
         );
       }
+    } on UnauthorizedException catch (e) {
+      // Jika terjadi UnauthorizedException, ApiService sudah melakukan clear token dan redirect.
+      if (!mounted) return;
+      debugPrint('Change Password Error (UnauthorizedException): ${e.message}');
+      // Tidak perlu menampilkan dialog error di sini karena redirect sudah ditangani
+      // _showAlertDialog('Error', e.message); // Opsional: Tampilkan jika ingin memberi tahu pengguna sebelum redirect penuh
     } catch (e) {
+      // Tangani error umum lainnya
       if (!mounted) return;
       debugPrint('Change Password Error: $e');
       _showAlertDialog(
         'Error',
-        'Terjadi kesalahan saat mengubah kata sandi: $e',
+        'Terjadi kesalahan saat mengubah kata sandi: ${e.toString().contains('Exception:') ? e.toString().split('Exception:').last.trim() : 'Mohon coba lagi.'}',
       );
     } finally {
       setState(() {
-        _isLoading = false; // Selesai loading
+        _isLoading = false;
       });
     }
   }

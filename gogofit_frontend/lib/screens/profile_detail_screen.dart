@@ -1,10 +1,16 @@
 // lib/screens/profile_detail_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Untuk FilteringTextInputFormatter
-import 'package:gogofit_frontend/models/user_profile_data.dart'; // Import model profil
-import 'package:intl/intl.dart'; // Untuk format tanggal, tambahkan package intl di pubspec.yaml
-import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
-import 'package:gogofit_frontend/screens/change_password_screen.dart'; // BARU: Import ChangePasswordScreen
+import 'package:flutter/services.dart';
+import 'package:gogofit_frontend/models/user_profile_data.dart';
+import 'package:intl/intl.dart';
+import 'package:gogofit_frontend/services/api_service.dart';
+import 'package:gogofit_frontend/screens/change_password_screen.dart';
+import 'package:gogofit_frontend/screens/auth/forgot_password_screen.dart';
+// import 'package:gogofit_frontend/screens/auth/login_screen.dart'; // Tidak perlu diimpor di sini jika ApiService sudah melakukan redirect
+import 'package:gogofit_frontend/exceptions/unauthorized_exception.dart'; // Import exception baru
+
+// Asumsi currentUserProfile sudah didefinisikan di user_profile_data.dart
+// ValueNotifier<UserProfile> currentUserProfile = ValueNotifier(UserProfile(...));
 
 class ProfileDetailScreen extends StatefulWidget {
   const ProfileDetailScreen({super.key});
@@ -17,9 +23,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   final Color primaryBlueNormal = const Color(0xFF015c91);
   final Color darkerBlue = const Color(0xFF002033);
   final Color lightBlueCardBackground = const Color(0xFFD9E7EF);
-  final Color accentBlueColor = const Color(
-    0xFF015c91,
-  ); // Digunakan untuk border/focus input
+  final Color accentBlueColor = const Color(0xFF015c91);
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -74,23 +78,35 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         currentUserProfile.value = fetchedProfile;
         _loadProfileData(fetchedProfile);
       } else {
-        _selectedGender = _genderOptions.first;
-        _selectedPurpose = _purposeOptions.first;
-        _showAlertDialog(
-          'Error',
-          'Gagal memuat profil. Mohon coba login kembali.',
-          () {
-            // TODO: Redirect ke halaman login jika token invalid/expired
-          },
+        // Jika fetchedProfile null, ini berarti AuthTokenManager.clearAuthToken()
+        // dan redirect ke login sudah terjadi di ApiService jika itu karena 401.
+        // Jika null karena alasan lain (misalnya data tidak ditemukan tapi bukan 401),
+        // maka Anda bisa tambahkan log atau dialog lain di sini.
+        debugPrint(
+          'Fetched profile is null. ApiService might have handled redirect.',
         );
+        // _showAlertDialog('Informasi', 'Gagal memuat profil. Silakan coba login kembali jika Anda belum di redirect.', null);
       }
+    } on UnauthorizedException {
+      // Exception ini ditangkap oleh _sendRequest di ApiService dan redirect dilakukan.
+      // Tidak perlu melakukan apa-apa lagi di sini selain log atau menampilkan UI kosong.
+      debugPrint(
+        'ProfileDetailScreen: Caught UnauthorizedException. Redirect handled by ApiService.',
+      );
+      setState(() {
+        _isLoading = false;
+        // Anda bisa menampilkan pesan khusus atau widget kosong di UI jika ingin
+        // sambil menunggu redirect terjadi.
+      });
     } catch (e) {
       debugPrint('Error fetching profile data: $e');
-      _selectedGender = _genderOptions.first;
-      _selectedPurpose = _purposeOptions.first;
-      _showAlertDialog('Error', 'Terjadi kesalahan saat memuat profil: $e', () {
-        // TODO: Redirect ke halaman login jika ada error koneksi dll.
+      // Tangani error lain, bukan 401.
+      setState(() {
+        _isLoading = false;
+        // Menampilkan pesan error di UI
+        // _errorMessage = 'Terjadi kesalahan saat memuat profil: $e';
       });
+      _showAlertDialog('Error', 'Terjadi kesalahan saat memuat profil: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -107,10 +123,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     _nameController.text = profile.name;
     _emailController.text = profile.email;
     _selectedBirthDate = profile.birthDate;
-    // FIX: Mengubah 'Singapura' menjadi 'yyyy' untuk format tahun yang benar
     _birthDateController.text = DateFormat(
-      'dd MMMM yyyy', // Menggunakan 'yyyy' untuk tahun 4 digit
-      'id', // Locale Indonesia
+      'dd MMMMyyyy',
+      'id',
     ).format(profile.birthDate);
     _heightController.text = profile.heightCm.toStringAsFixed(1);
     _currentWeightController.text = profile.currentWeightKg.toStringAsFixed(1);
@@ -164,10 +179,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     if (picked != null && picked != _selectedBirthDate) {
       setState(() {
         _selectedBirthDate = picked;
-        // FIX: Mengubah 'Singapura' menjadi 'yyyy' untuk format tahun yang benar
         _birthDateController.text = DateFormat(
-          'dd MMMM yyyy', // Menggunakan 'yyyy' untuk tahun 4 digit
-          'id', // Locale Indonesia
+          'dd MMMMyyyy',
+          'id',
         ).format(picked);
       });
     }
@@ -208,7 +222,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       return;
     }
 
-    // Buat objek UserProfile yang diperbarui
     final updatedProfile = currentUserProfile.value.copyWith(
       name: _nameController.text,
       email: _emailController.text,
@@ -220,21 +233,30 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       purpose: getDietPurposeEnumFromFlutterString(_selectedPurpose),
     );
 
-    // Kirim data ke backend
-    final response = await _apiService.updateProfile(updatedProfile);
+    try {
+      final response = await _apiService.updateProfile(updatedProfile);
 
-    if (response['success']) {
-      currentUserProfile.value = updatedProfile;
-      _showAlertDialog('Sukses', 'Profil berhasil diperbarui!', () {
-        setState(() {
-          _isEditing = false;
+      if (response['success']) {
+        currentUserProfile.value = updatedProfile;
+        _showAlertDialog('Sukses', 'Profil berhasil diperbarui!', () {
+          setState(() {
+            _isEditing = false;
+          });
         });
-      });
-    } else {
-      _showAlertDialog(
-        'Error',
-        response['message'] ?? 'Gagal memperbarui profil.',
+      } else {
+        _showAlertDialog(
+          'Error',
+          response['message'] ?? 'Gagal memperbarui profil.',
+        );
+      }
+    } on UnauthorizedException {
+      // ApiService sudah handle redirect, tidak perlu apa-apa lagi di sini
+      debugPrint(
+        'ProfileDetailScreen: updateProfile caught UnauthorizedException. Redirect handled by ApiService.',
       );
+    } catch (e) {
+      debugPrint('Error saving profile: $e');
+      _showAlertDialog('Error', 'Terjadi kesalahan saat menyimpan profil: $e');
     }
   }
 
@@ -300,6 +322,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               : ValueListenableBuilder<UserProfile>(
                 valueListenable: currentUserProfile,
                 builder: (context, profile, child) {
+                  // Cek apakah profil null (misalnya, jika terjadi UnauthorizedException)
+                  // Anda bisa menampilkan UI yang berbeda atau pesan loading/error yang lebih persisten
+                  // jika _fetchProfileData() mengembalikan null dan redirect belum terjadi
+                  if (profile == UserProfile.empty()) {
+                    // Asumsi ada UserProfile.empty() atau semacamnya
+                    return const Center(
+                      child: Text(
+                        'Profil tidak tersedia. Silakan login kembali.',
+                        style: TextStyle(fontFamily: 'Poppins', fontSize: 16),
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  }
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
@@ -514,7 +549,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                           child: ElevatedButton(
                             onPressed: () {
                               debugPrint('Navigasi ke halaman Ubah Kata Sandi');
-                              // BARU: Navigasi ke ChangePasswordScreen
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -538,6 +572,42 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                               ),
                             ),
                             child: const Text('Ubah Kata Sandi'),
+                          ),
+                        ),
+                        // BARU: Tombol Lupa Kata Sandi
+                        const SizedBox(
+                          height: 10,
+                        ), // Memberi jarak antara tombol
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              debugPrint('Navigasi ke halaman Lupa Kata Sandi');
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) => const ForgotPasswordScreen(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  lightBlueCardBackground, // Warna yang sama dengan "Ubah Kata Sandi"
+                              foregroundColor: darkerBlue,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 5,
+                              textStyle: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                            child: const Text('Lupa Kata Sandi?'),
                           ),
                         ),
                         const SizedBox(height: 30),
@@ -596,10 +666,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
               isDense: true,
-              suffixIcon:
-                  suffixIcon != null
-                      ? Icon(suffixIcon, color: Colors.grey.shade600)
-                      : null,
             ),
             style: TextStyle(
               color: darkerBlue,

@@ -1,5 +1,5 @@
 // lib/models/user_profile_data.dart
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'; // Tetap butuh ini untuk UniqueKey atau debugPrint
 
 // Enum untuk Tujuan Diet, konsisten dengan onboarding
 enum DietPurpose {
@@ -84,6 +84,21 @@ class UserProfile {
     required this.purpose,
   }) : id = id ?? UniqueKey().toString();
 
+  // BARU: Factory constructor untuk membuat instance UserProfile kosong/default
+  factory UserProfile.empty() {
+    return UserProfile(
+      id: UniqueKey().toString(), // ID unik untuk instance kosong
+      name: 'Guest',
+      email: 'guest@example.com',
+      gender: 'Laki-laki', // Default
+      birthDate: DateTime(2000, 1, 1), // Default
+      heightCm: 0.0,
+      currentWeightKg: 0.0,
+      targetWeightKg: 0.0,
+      purpose: DietPurpose.other, // Default
+    );
+  }
+
   // Metode copyWith untuk membuat instance UserProfile baru dengan beberapa properti yang diubah
   UserProfile copyWith({
     String? id,
@@ -116,12 +131,15 @@ class UserProfile {
       'id': id,
       'name': name,
       'email': email,
-      'gender': gender,
+      'gender':
+          gender, // Pastikan ini 'Laki-laki'/'Perempuan' atau diubah ke 'male'/'female' jika BE butuh itu
       'birthDate': birthDate.toIso8601String(),
       'heightCm': heightCm,
       'currentWeightKg': currentWeightKg,
       'targetWeightKg': targetWeightKg,
-      'purpose': getDietPurposeString(purpose),
+      'purpose': getDietPurposeString(
+        purpose,
+      ), // Menggunakan helper untuk konversi ke string UI
     };
   }
 

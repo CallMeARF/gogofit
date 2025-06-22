@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth; // FIX: Pertahankan Auth facade ini
 
 /*
 |--------------------------------------------------------------------------
@@ -16,3 +17,13 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+// HAPUS: Rute-rute reset password manual yang kita tambahkan sebelumnya
+// Route::get('password/reset', [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
+// Route::post('password/email', [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
+// Route::get('password/reset/{token}', [ResetPasswordController::class, 'showResetForm'])->name('password.reset');
+// Route::post('password/reset', [ResetPasswordController::class, 'reset'])->name('password.update');
+
+Auth::routes(); // FIX: Ini mendaftarkan SEMUA rute autentikasi bawaan Laravel (login, register, reset password, email verification)
+
+Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

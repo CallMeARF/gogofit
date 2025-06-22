@@ -3,9 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:gogofit_frontend/screens/auth/register_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService untuk login nyata
-import 'package:gogofit_frontend/screens/dashboard_screen.dart'; // Import DashboardScreen
-import 'package:gogofit_frontend/models/user_profile_data.dart'; // Import UserProfile model
+import 'package:gogofit_frontend/services/api_service.dart';
+import 'package:gogofit_frontend/screens/dashboard_screen.dart';
+import 'package:gogofit_frontend/models/user_profile_data.dart';
+import 'package:gogofit_frontend/screens/auth/forgot_password_screen.dart';
+import 'package:gogofit_frontend/exceptions/unauthorized_exception.dart'; // BARU: Import UnauthorizedException
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,17 +42,28 @@ class _LoginScreenState extends State<LoginScreen> {
     _showLoadingDialog(); // Tampilkan loading dialog
 
     try {
-      // FIX: Meneruskan nilai _rememberMe ke ApiService.login()
+      // Memanggil ApiService.login(). Parameter rememberMe akan diteruskan,
+      // dan logika persistensi token (melalui AuthTokenManager) sudah ditangani di dalam ApiService.login().
       final response = await _apiService.login(
         email,
         password,
-        rememberMe: _rememberMe,
+        rememberMe: _rememberMe, // Pastikan ini diteruskan
       );
 
       if (!mounted) return;
-      Navigator.of(context).pop(); // Tutup loading dialog
+      // Pastikan dialog loading ditutup sebelum tindakan lain
+      Navigator.of(context).pop();
 
       if (response['success']) {
+        // PERBAIKAN: Hapus kode penyimpanan token di sini.
+        // Logika penyimpanan token sudah dipindahkan ke ApiService.login()
+        // dan AuthTokenManager.
+        // if (response.containsKey('token')) {
+        //     String token = response['token'];
+        //     await AuthTokenManager.setAuthToken(token, rememberMe: _rememberMe);
+        // }
+
+        // Setelah login berhasil, coba ambil profil pengguna
         final UserProfile? fetchedProfile = await _apiService.getUserProfile();
 
         if (!mounted) return;
@@ -61,9 +74,14 @@ class _LoginScreenState extends State<LoginScreen> {
             'User profile updated after successful login: ${fetchedProfile.name}',
           );
         } else {
-          debugPrint('Failed to fetch user profile immediately after login.');
+          // Jika profil null, bisa jadi karena UnauthorizedException yang sudah ditangani ApiService (redirect)
+          // atau error lain yang tidak 401. Log saja.
+          debugPrint(
+            'Failed to fetch user profile immediately after login, possibly due to API Service redirect or other error.',
+          );
         }
 
+        // Tampilkan dialog sukses dan kemudian navigasi ke Dashboard
         _showAlertDialog(
           'Sukses',
           response['message'] ?? 'Login berhasil!',
@@ -76,18 +94,29 @@ class _LoginScreenState extends State<LoginScreen> {
           },
         );
       } else {
+        // Jika login gagal (respons success: false)
         _showAlertDialog(
           'Error',
           response['message'] ?? 'Login gagal. Cek email dan password Anda.',
         );
       }
+    } on UnauthorizedException catch (e) {
+      // Ini seharusnya jarang terjadi di sini karena login() di ApiService memiliki requireAuth: false.
+      // Namun jika terjadi, ini berarti token yang mungkin ada (misal dari sesi sebelumnya) dianggap invalid
+      // oleh server dan ApiService sudah memicunya untuk redirect ke LoginScreen lagi.
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Tutup loading dialog jika masih terbuka
+      debugPrint('Login Error (UnauthorizedException): ${e.message}');
+      // ApiService sudah melakukan redirect, jadi tidak perlu navigasi lagi di sini
+      _showAlertDialog('Error', e.message);
     } catch (e) {
+      // Tangani error lain yang tidak terduga
       if (!mounted) return;
       Navigator.of(context).pop(); // Tutup loading dialog
       debugPrint('Login Error: $e');
       _showAlertDialog(
         'Error',
-        'Terjadi kesalahan saat login. Mohon coba lagi.',
+        'Terjadi kesalahan saat login: ${e.toString().contains('Exception:') ? e.toString().split('Exception:').last.trim() : 'Mohon coba lagi.'}',
       );
     }
   }
@@ -287,7 +316,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          debugPrint('Lupa password?');
+                          // Navigasi ke ForgotPasswordScreen
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => const ForgotPasswordScreen(),
+                            ),
+                          );
+                          debugPrint('Navigasi ke ForgotPasswordScreen');
                         },
                         child: Text(
                           'Lupa password?',

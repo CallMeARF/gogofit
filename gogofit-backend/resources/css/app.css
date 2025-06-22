@@ -1,0 +1,73 @@
+/* resources/css/app.css */
+
+/* Import Poppins font from Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
+
+/* Define GoGoFit Colors as CSS Variables */
+:root {
+    --gogofit-primary-blue: #015c91; /* primaryAppColor / accentBlueColor */
+    --gogofit-darker-text-blue: #002033; /* darkerTextColor / darkerBlue */
+    --gogofit-main-button-blue: #01456d; /* mainButtonColor */
+    --gogofit-light-card-bg: #d9e7ef;
+    --gogofit-alert-red: #ef5350;
+    --gogofit-grey-text: #606060; /* Approximate Colors.grey.shade600 */
+    --gogofit-hint-text: #a0a0a0; /* Approximate Colors.grey.shade400 */
+    --gogofit-shadow-color: rgba(0, 0, 0, 0.2); /* blackWithOpacity20 */
+}
+
+/* Custom Overrides for general elements to apply Poppins font and default colors */
+body {
+    font-family: "Poppins", sans-serif;
+    color: var(--gogofit-darker-text-blue);
+    background-color: #ffffff;
+}
+
+/* Anda bisa menambahkan overrides global lainnya di sini jika diperlukan */
+/* Misalnya untuk memastikan warna link default */
+a {
+    color: var(--gogofit-primary-blue);
+}
+a:hover {
+    color: var(--gogofit-darker-text-blue);
+}
+
+/* Override Bootstrap card-header if needed */
+.card-header {
+    background-color: var(--gogofit-primary-blue) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    font-size: 1.25rem !important;
+    text-align: center !important;
+}
+
+/* Override Bootstrap primary button if needed */
+.btn-primary {
+    background-color: var(--gogofit-main-button-blue) !important;
+    border-color: var(--gogofit-main-button-blue) !important;
+    color: white !important;
+    font-weight: 600 !important;
+}
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: #003050 !important;
+    border-color: #003050 !important;
+}
+
+/* Other specific overrides to ensure GoGoFit colors/fonts take precedence */
+.col-form-label {
+    color: var(--gogofit-darker-text-blue) !important;
+    font-weight: 500 !important;
+    font-family: "Poppins", sans-serif !important;
+}
+.form-control {
+    color: var(--gogofit-darker-text-blue) !important;
+    font-family: "Poppins", sans-serif !important;
+}
+.form-control::placeholder {
+    /* For placeholder color */
+    color: var(--gogofit-hint-text) !important;
+    opacity: 1; /* Ensure placeholder is not too transparent */
+}
+.invalid-feedback {
+    color: var(--gogofit-alert-red) !important;
+}

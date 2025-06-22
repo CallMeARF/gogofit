@@ -15,14 +15,13 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable(); // Biasanya ada juga
             $table->string('password');
+            $table->rememberToken(); // FIX: Tambahkan baris ini!
             $table->enum('gender', ['male', 'female'])->nullable();
             $table->date('birth_date')->nullable();
-            // UBAH: height dari integer menjadi float
             $table->float('height')->nullable(); 
-            // UBAH: weight dari integer menjadi float (ini untuk current_weight)
             $table->float('weight')->nullable(); 
-            // BARU: target_weight dengan tipe float
             $table->float('target_weight')->nullable(); 
             $table->enum('goal', ['lose_weight', 'gain_weight', 'stay_healthy'])->nullable();
             $table->timestamps();

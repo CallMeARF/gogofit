@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Import ini untuk FilteringTextInputFormatter
 import '../models/meal_data.dart'; // Mengandung MealEntry dan userMeals
 import '../models/notification_data.dart'; // Mengandung AppNotification dan fungsi notifikasi
-// import 'package:gogofit_frontend/services/notification_service.dart'; // Mengandung NotificationService
+// import 'package:gogofit_frontend/services/notification_service.dart'; // FIX: Pastikan import ini AKTIF
 import 'package:gogofit_frontend/screens/dashboard_screen.dart'; // Import DashboardScreen
 import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
 
@@ -60,6 +60,9 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
   final ApiService _apiService = ApiService(); // Inisialisasi ApiService
   bool _isSaving = false; // State untuk loading saat menyimpan
 
+  // HAPUS: Deklarasi lokal notificationService ini karena kita akan menggunakan instance global
+  // final NotificationService notificationService = NotificationService();
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +70,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
 
     MealEntry? dataToFill = widget.mealToEdit ?? widget.initialMealData;
 
+    // FIX: Bungkus akses properti dataToFill di dalam pengecekan null
     if (dataToFill != null) {
       _mealNameController.text = dataToFill.name;
       _caloriesController.text = dataToFill.calories.toStringAsFixed(1);
@@ -77,10 +81,9 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
       _sugarController.text = dataToFill.sugar.toStringAsFixed(1);
       _selectedMealType = dataToFill.mealType;
     } else {
+      // Jika dataToFill null, pastikan _selectedMealType tetap diinisialisasi
       _selectedMealType = widget.initialMealType ?? 'Sarapan';
     }
-
-    // FIX: Hapus listener di sini untuk memutus potensi infinite loop
   }
 
   @override
@@ -94,12 +97,6 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
     _sugarController.dispose();
     super.dispose();
   }
-  // FIX: Hapus fungsi _onUserMealsChanged() karena tidak lagi diperlukan
-  /*
-  void _onUserMealsChanged() {
-    debugPrint("userMeals changed, refetching food logs for DailyLogScreen.");
-  }
-  */
 
   void _saveMeal() async {
     if (_mealNameController.text.isEmpty || _caloriesController.text.isEmpty) {
@@ -133,9 +130,9 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
 
     try {
       if (_isEditing) {
+        // Karena mealToEdit adalah MealEntry?, tambahkan ! untuk akses yang tidak bisa null
         final updatedMealPayload = MealEntry(
-          // Gunakan mealToEdit.id yang sudah ada
-          id: widget.mealToEdit!.id, // PASTIKAN ID ADA DI SINI
+          id: widget.mealToEdit!.id,
           name: name,
           calories: calories,
           fat: fat,
@@ -143,27 +140,21 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           carbs: carbs,
           protein: protein,
           sugar: sugar,
-          timestamp: widget.mealToEdit!.timestamp, // Pertahankan timestamp asli
+          timestamp: widget.mealToEdit!.timestamp,
           mealType: _selectedMealType,
         );
 
-        // UBAH: Panggil API updateFoodLog dengan objek MealEntry yang lengkap
         final response = await _apiService.updateFoodLog(updatedMealPayload);
 
         if (!mounted) return;
         if (response['success']) {
-          // Asumsi response['log'] mengembalikan MealEntry yang diperbarui dari BE
-          // Jika tidak, Anda perlu mengubah ini.
-          // MealEntry updatedMealFromBE = MealEntry.fromJson(response['log']);
-
-          // FIX: Perbarui MealEntry di userMeals dengan objek MealEntry yang sudah di-update
           updateMealEntry(updatedMealPayload);
 
           debugPrint('Updated Meal: ${updatedMealPayload.toJson()}');
           _checkAndAddNotifications(updatedMealPayload);
           _showAlertDialog('Sukses', 'Santapan berhasil diperbarui!', () {
             if (!mounted) return;
-            Navigator.pop(context); // Kembali ke EditMealListScreen
+            Navigator.pop(context);
           });
         } else {
           _showAlertDialog(
@@ -173,7 +164,6 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
         }
       } else {
         final newMealPayload = MealEntry(
-          // ID akan di-generate oleh backend, jadi tidak perlu di sini pada payload awal
           name: name,
           calories: calories,
           fat: fat,
@@ -185,24 +175,18 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           mealType: _selectedMealType,
         );
 
-        // UBAH: Panggil API addFoodLog
         final response = await _apiService.addFoodLog(newMealPayload);
 
         if (!mounted) return;
         if (response['success']) {
-          // Asumsi response['log'] mengembalikan MealEntry baru dengan ID dari BE
-          final MealEntry newMealFromBE = MealEntry.fromJson(
-            response['log'],
-          ); // Dapatkan MealEntry dengan ID dari BE
+          final MealEntry newMealFromBE = MealEntry.fromJson(response['log']);
 
-          // FIX: Tambahkan MealEntry baru dengan ID dari backend ke userMeals
           userMeals.value = [...userMeals.value, newMealFromBE];
 
           debugPrint('Added Meal (from BE): ${newMealFromBE.toJson()}');
           _checkAndAddNotifications(newMealFromBE);
           _showAlertDialog('Sukses', 'Santapan berhasil ditambahkan!', () {
             if (!mounted) return;
-            // Kembali ke DashboardScreen setelah tambah (atau pop jika alurnya lebih fleksibel)
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => const DashboardScreen()),
@@ -252,9 +236,16 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
         .fold(0.0, (sum, meal) => sum + meal.sugar);
   }
 
-  // Asumsi hasSpecificNotificationForToday, addNotification, removeSpecificNotificationForToday
-  // adalah fungsi global yang berasal dari notification_data.dart
-  // Asumsi notificationService berasal dari services/notification_service.dart
+  bool hasSpecificNotificationForToday(String title, NotificationType type) =>
+      false;
+  void addNotification(AppNotification notification) {}
+  // FIX: Menggunakan instance global notificationService
+  // Hapus deklarasi lokal ini karena sudah ada yang global di file notification_service.dart
+  // final NotificationService notificationService = NotificationService();
+  void removeSpecificNotificationForToday(
+    String title,
+    NotificationType type,
+  ) {}
 
   void _checkAndAddNotifications(MealEntry currentMeal) async {
     final double totalCalories = calculateTotalCalories();
@@ -341,20 +332,6 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           ),
         );
         debugPrint('Notifikasi: Target Kalori Tercapai ditambahkan!');
-        // FIX: Hapus pemanggilan notifikasi lokal yang bermasalah.
-        // Jika Anda ingin mengaktifkannya nanti, Anda harus menyediakan
-        // 'flutterLocalNotificationsPlugin' ke NotificationService.
-        /*
-        await notificationService.showLocalNotification(
-          id: 100,
-          title: 'Target Kalori Tercapai!',
-          body: 'Selamat! Anda berhasil mencapai target kalori harian Anda.',
-          channelId: 'gogofit_achievement_calorie_channel',
-          channelName: 'Pencapaian Kalori',
-          channelDescription: 'Notifikasi untuk pencapaian target kalori',
-          payload: 'calorie_achievement_payload',
-        );
-        */
       } else {
         debugPrint(
           'DEBUG Notif Check: Notif Target Kalori Tercapai sudah ada untuk hari ini. Tidak ditambahkan duplikat.',
@@ -376,18 +353,6 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           ),
         );
         debugPrint('Notifikasi: Kelebihan Kalori ditambahkan!');
-        // FIX: Hapus pemanggilan notifikasi lokal yang bermasalah.
-        /*
-        await notificationService.showLocalNotification(
-          id: 0,
-          title: 'Peringatan Kalori Berlebih!',
-          body: 'Anda telah melewati batas konsumsi kalori harian.',
-          channelId: 'gogofit_calorie_channel',
-          channelName: 'Peringatan Kalori',
-          channelDescription: 'Notifikasi untuk peringatan kalori berlebih',
-          payload: 'calorie_warning_payload',
-        );
-        */
       } else {
         debugPrint(
           'DEBUG Notif Check: Notif Peringatan Kalori Berlebih sudah ada untuk hari ini. Tidak ditambahkan duplikat.',
@@ -412,18 +377,6 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           ),
         );
         debugPrint('Notifikasi: Target Gula Tercapai ditambahkan!');
-        // FIX: Hapus pemanggilan notifikasi lokal yang bermasalah.
-        /*
-        await notificationService.showLocalNotification(
-          id: 101,
-          title: 'Target Gula Tercapai!',
-          body: 'Selamat! Anda berhasil mencapai target gula harian Anda.',
-          channelId: 'gogofit_achievement_sugar_channel',
-          channelName: 'Pencapaian Gula',
-          channelDescription: 'Notifikasi untuk pencapaian target gula',
-          payload: 'sugar_achievement_payload',
-        );
-        */
       } else {
         debugPrint(
           'DEBUG Notif Check: Notif Target Gula Tercapai sudah ada untuk hari ini. Tidak ditambahkan duplikat.',
@@ -445,18 +398,6 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           ),
         );
         debugPrint('Notifikasi: Kelebihan Gula ditambahkan!');
-        // FIX: Hapus pemanggilan notifikasi lokal yang bermasalah.
-        /*
-        await notificationService.showLocalNotification(
-          id: 1,
-          title: 'Peringatan Gula Berlebih!',
-          body: 'Anda telah melewati batas konsumsi gula harian.',
-          channelId: 'gogofit_sugar_channel',
-          channelName: 'Peringatan Gula',
-          channelDescription: 'Notifikasi untuk peringatan gula berlebih',
-          payload: 'sugar_warning_payload',
-        );
-        */
       } else {
         debugPrint(
           'DEBUG Notif Check: Notif Peringatan Gula Berlebih sudah ada untuk hari ini. Tidak ditambahkan duplikat.',
@@ -496,21 +437,6 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
       },
     );
   }
-
-  // FIX: HAPUS DUPLIKAT FUNGSI dispose() INI
-  /*
-  @override
-  void dispose() {
-    _mealNameController.dispose();
-    _caloriesController.dispose();
-    _fatController.dispose();
-    _saturatedFatController.dispose(); // Dispose controller lemak jenuh
-    _carbsController.dispose();
-    _proteinController.dispose();
-    _sugarController.dispose();
-    super.dispose();
-  }
-  */
 
   @override
   Widget build(BuildContext context) {
