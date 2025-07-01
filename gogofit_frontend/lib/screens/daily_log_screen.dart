@@ -38,36 +38,36 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
   bool _isLoading = false; // Untuk indikator loading
   final ApiService _apiService = ApiService(); // Inisialisasi ApiService
 
-  double _targetDailyCalories = 1340.0;
-  final double _exerciseCalories = 190.0;
-  double _targetDailySugar = 30.0;
+  final double _exerciseCalories = 190.0; // Ini tetap statis untuk sementara
 
   @override
   void initState() {
     super.initState();
     _loadInitialData(); // Panggil metode untuk memuat data awal
-    // HAPUS: userMeals.addListener(_onUserMealsChanged); // Menghilangkan listener untuk memutus loop
+    // BARU: Tambahkan listener untuk perubahan profil pengguna
+    currentUserProfile.addListener(_updateTargetValuesAndFetchLogs);
   }
 
   @override
   void dispose() {
-    // HAPUS: userMeals.removeListener(_onUserMealsChanged); // Menghilangkan listener yang sudah tidak ada
+    // BARU: Hapus listener untuk perubahan profil pengguna
+    currentUserProfile.removeListener(_updateTargetValuesAndFetchLogs);
     super.dispose();
   }
 
-  // HAPUS: Fungsi _onUserMealsChanged() karena tidak lagi diperlukan untuk memicu refetch
-  /*
-  void _onUserMealsChanged() {
-    debugPrint("userMeals changed, refetching food logs for DailyLogScreen.");
+  // BARU: Metode untuk memperbarui nilai target dan memicu fetchLogs
+  void _updateTargetValuesAndFetchLogs() {
+    setState(() {
+      // Nilai target diambil langsung dari currentUserProfile.value
+      // Tidak perlu variabel state _targetDailyCalories dan _targetDailySugar lagi
+    });
+    // Panggil _fetchFoodLogs untuk memastikan UI diperbarui dengan target baru
     _fetchFoodLogs();
   }
-  */
 
   Future<void> _loadInitialData() async {
-    setState(() {
-      _targetDailyCalories = currentUserProfile.value.targetWeightKg * 20;
-      _targetDailySugar = currentUserProfile.value.targetWeightKg / 2;
-    });
+    // _targetDailyCalories dan _targetDailySugar akan diambil di `build` method
+    // atau di `_updateTargetValuesAndFetchLogs`
 
     await _fetchFoodLogs();
   }
@@ -83,9 +83,6 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
       if (!mounted) return;
       setState(() {
         _foodLogs = fetchedLogs; // Perbarui list _foodLogs
-        // HAPUS: userMeals.value = List.from(fetchedLogs); // Baris ini yang menyebabkan infinite loop!
-        // Jika userMeals.value perlu diperbarui, itu harus dilakukan oleh layar yang mengubah data (AddMealManualScreen/EditMealListScreen)
-        // atau jika DailyLogScreen menggunakan ValueListenableBuilder untuk userMeals, maka _foodLogs tidak perlu ada.
       });
       debugPrint(
         "Fetched food logs for ${_selectedDate.toIso8601String().split('T')[0]}: ${_foodLogs.length} entries",
@@ -157,7 +154,8 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
 
   String _formatDate(DateTime date) {
     if (date.day == DateTime.now().day &&
-        date.month == DateTime.now().month &&
+        DateTime.now().month ==
+            date.month && // PERBAIKAN: Gunakan DateTime.now()
         date.year == DateTime.now().year) {
       return 'Hari ini';
     } else if (date.day ==
@@ -166,12 +164,19 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
         date.year == DateTime.now().year) {
       return 'Kemarin';
     } else {
-      return DateFormat('dd MMMM Geißler', 'id').format(date);
+      // PERBAIKAN: Ganti 'Geißler' menjadi format tahun yang benar 'yyyy'
+      return DateFormat('dd MMMMyyyy', 'id').format(date);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // BARU: Ambil target kalori dan gula dari profil pengguna yang dinamis
+    final double targetDailyCalories =
+        currentUserProfile.value.calculatedTargetCalories;
+    final double targetDailySugar =
+        currentUserProfile.value.calculatedTargetSugar;
+
     // FIX: Pastikan _foodLogs difilter berdasarkan _selectedDate
     final List<MealEntry> mealsForSelectedDate =
         _foodLogs
@@ -193,8 +198,8 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
     );
 
     double remainingCalories =
-        _targetDailyCalories - totalCaloriesConsumed + _exerciseCalories;
-    double remainingSugar = _targetDailySugar - totalSugarConsumed;
+        targetDailyCalories - totalCaloriesConsumed + _exerciseCalories;
+    double remainingSugar = targetDailySugar - totalSugarConsumed;
 
     String calorieUnit = 'Sisa';
     Color calorieValueColor = darkerBlue;
@@ -222,7 +227,12 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
         leading: IconButton(
           icon: Icon(Icons.person, color: primaryBlueNormal, size: 28),
           onPressed: () {
-            debugPrint('Navigasi ke halaman Profil');
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MoreOptionsScreen(),
+              ),
+            );
           },
         ),
         title: Text(
@@ -351,7 +361,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                         data: [
                           {
                             'label': 'Sasaran',
-                            'value': _targetDailyCalories.toStringAsFixed(0),
+                            'value': targetDailyCalories.toStringAsFixed(0),
                           },
                           {
                             'label': 'Makanan',
@@ -381,7 +391,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                           {
                             'label': 'Sasaran',
                             'value':
-                                '${_targetDailySugar.toStringAsFixed(1)} gram',
+                                '${targetDailySugar.toStringAsFixed(1)} gram',
                           },
                           {
                             'label': 'Makanan',
@@ -603,6 +613,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
     );
   }
 
+  // Widget helper untuk membuat kartu ringkasan (Kalori, Gula)
   Widget _buildSummaryCard({
     required String title,
     required List<Map<String, dynamic>> data,

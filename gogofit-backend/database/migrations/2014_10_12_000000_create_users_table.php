@@ -15,15 +15,17 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable(); // Biasanya ada juga
+            $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->rememberToken(); // FIX: Tambahkan baris ini!
+            $table->rememberToken();
             $table->enum('gender', ['male', 'female'])->nullable();
             $table->date('birth_date')->nullable();
             $table->float('height')->nullable(); 
             $table->float('weight')->nullable(); 
             $table->float('target_weight')->nullable(); 
-            $table->enum('goal', ['lose_weight', 'gain_weight', 'stay_healthy'])->nullable();
+            // PERBAIKAN: Hapus 'other' dari enum goal
+            $table->enum('goal', ['lose_weight', 'gain_weight', 'stay_healthy'])->nullable(); 
+            $table->enum('activity_level', ['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'super_active'])->nullable();
             $table->timestamps();
         });
     }

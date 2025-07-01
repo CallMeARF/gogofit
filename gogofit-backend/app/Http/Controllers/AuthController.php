@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Password; // BARU: Import Facade Password
 use Illuminate\Contracts\Auth\PasswordBroker; // BARU: Import PasswordBroker untuk type hinting
+use Illuminate\Validation\Rule; // PERBAIKAN: Import Rule untuk validasi enum yang lebih spesifik
 
 class AuthController extends Controller
 {
@@ -21,12 +22,14 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'gender' => 'nullable|in:male,female', 
+            'gender' => ['nullable', Rule::in(['male', 'female'])], // Gunakan Rule::in untuk konsistensi
             'birth_date' => 'nullable|date',
             'height' => 'nullable|numeric',
             'weight' => 'nullable|numeric',
             'target_weight' => 'nullable|numeric',
-            'goal' => 'nullable|in:lose_weight,gain_weight,stay_healthy', 
+            // PERBAIKAN: Hapus 'other' dari validasi 'goal'
+            'goal' => ['nullable', Rule::in(['lose_weight', 'gain_weight', 'stay_healthy'])], 
+            'activity_level' => ['nullable', Rule::in(['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'super_active'])], // Validasi activity_level
         ]);
 
         $user = User::create([
@@ -39,6 +42,7 @@ class AuthController extends Controller
             'weight' => $request->weight,
             'target_weight' => $request->target_weight,
             'goal' => $request->goal, 
+            'activity_level' => $request->activity_level, // Simpan activity_level
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -88,12 +92,14 @@ class AuthController extends Controller
         $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
-            'gender' => 'nullable|in:male,female', 
+            'gender' => ['nullable', Rule::in(['male', 'female'])], // Gunakan Rule::in untuk konsistensi
             'birth_date' => 'nullable|date',
             'height' => 'nullable|numeric',
             'weight' => 'nullable|numeric', 
             'target_weight' => 'nullable|numeric', 
-            'goal' => 'nullable|in:lose_weight,gain_weight,stay_healthy', 
+            // PERBAIKAN: Hapus 'other' dari validasi 'goal'
+            'goal' => ['nullable', Rule::in(['lose_weight', 'gain_weight', 'stay_healthy'])], 
+            'activity_level' => ['nullable', Rule::in(['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'super_active'])], // Validasi activity_level
         ]);
         
         $user->fill($request->all());
@@ -121,7 +127,7 @@ class AuthController extends Controller
     }
 
     /**
-     * BARU: Metode untuk mengubah password pengguna
+     * Metode untuk mengubah password pengguna
      */
     public function changePassword(Request $request)
     {
@@ -151,7 +157,7 @@ class AuthController extends Controller
     }
 
     /**
-     * BARU: Metode untuk menangani permintaan forgot password (mengirim email reset link).
+     * Metode untuk menangani permintaan forgot password (mengirim email reset link).
      * Ini adalah endpoint API yang akan dipanggil dari Flutter.
      */
     public function forgotPassword(Request $request)
@@ -207,6 +213,7 @@ class AuthController extends Controller
             'weight' => $user->weight,
             'target_weight' => $user->target_weight,
             'goal' => $user->goal, 
+            'activity_level' => $user->activity_level, // Tambahkan activity_level ke respons
         ];
     }
 }

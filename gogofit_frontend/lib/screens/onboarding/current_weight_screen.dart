@@ -1,60 +1,63 @@
-// lib/screens/onboarding/height_screen.dart
+// lib/screens/onboarding/current_weight_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:gogofit_frontend/screens/onboarding/current_weight_screen.dart';
 import 'package:gogofit_frontend/models/user_profile_data.dart';
+import 'package:gogofit_frontend/screens/onboarding/target_weight_screen.dart';
 import 'package:scroll_snap_list/scroll_snap_list.dart';
+import 'dart:math' as math;
 
-class HeightScreen extends StatefulWidget {
+class CurrentWeightScreen extends StatefulWidget {
   final Map<String, dynamic> registrationData;
 
-  const HeightScreen({super.key, required this.registrationData});
+  const CurrentWeightScreen({super.key, required this.registrationData});
 
   @override
-  State<HeightScreen> createState() => _HeightScreenState();
+  State<CurrentWeightScreen> createState() => _CurrentWeightScreenState();
 }
 
-class _HeightScreenState extends State<HeightScreen> {
-  double _selectedHeight = 175.0; // Nilai default
+class _CurrentWeightScreenState extends State<CurrentWeightScreen> {
+  double _selectedCurrentWeight = 65.0; // Nilai default
 
   @override
   void initState() {
     super.initState();
 
-    double initialHeight;
-    if (widget.registrationData.containsKey('heightCm') &&
-        widget.registrationData['heightCm'] != null) {
-      initialHeight = (widget.registrationData['heightCm'] as num).toDouble();
-    } else if (currentUserProfile.value.heightCm > 0.0) {
-      initialHeight = currentUserProfile.value.heightCm;
+    double initialWeight;
+    if (widget.registrationData.containsKey('currentWeightKg') &&
+        widget.registrationData['currentWeightKg'] != null) {
+      initialWeight =
+          (widget.registrationData['currentWeightKg'] as num).toDouble();
+    } else if (currentUserProfile.value.currentWeightKg > 0.0) {
+      initialWeight = currentUserProfile.value.currentWeightKg;
     } else {
-      initialHeight = 175.0; // Default fallback
+      initialWeight = 65.0; // Default fallback
     }
 
-    _selectedHeight = initialHeight;
+    _selectedCurrentWeight = initialWeight;
 
     // PERBAIKAN: Sinkronkan nilai awal ke state global untuk konsistensi.
     currentUserProfile.value = currentUserProfile.value.copyWith(
-      heightCm: _selectedHeight,
+      currentWeightKg: _selectedCurrentWeight,
     );
     debugPrint(
-      'HeightScreen initState: currentUserProfile updated with height: $_selectedHeight',
+      'CurrentWeightScreen initState: currentUserProfile updated with weight: $_selectedCurrentWeight',
     );
   }
 
   void _navigateToNextScreen() {
     // Logika ini sudah benar, state global diperbarui.
     currentUserProfile.value = currentUserProfile.value.copyWith(
-      heightCm: _selectedHeight,
+      currentWeightKg: _selectedCurrentWeight,
     );
 
     final updatedRegistrationData = Map<String, dynamic>.from(
       widget.registrationData,
     );
-    updatedRegistrationData['heightCm'] = _selectedHeight;
+    updatedRegistrationData['currentWeightKg'] = _selectedCurrentWeight;
 
+    // Menambahkan debug print yang lebih detail
     debugPrint(
-      'Tinggi badan terpilih: ${_selectedHeight.toStringAsFixed(1)} cm, melanjutkan ke Current Weight Screen.',
+      'Berat badan saat ini terpilih: ${_selectedCurrentWeight.toStringAsFixed(1)} kg, melanjutkan ke Target Weight Screen.',
     );
     debugPrint('  - RegistrationData: $updatedRegistrationData');
     debugPrint(
@@ -64,7 +67,7 @@ class _HeightScreenState extends State<HeightScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Tinggi badan dipilih: ${_selectedHeight.toStringAsFixed(1)} cm',
+          'Berat badan saat ini dipilih: ${_selectedCurrentWeight.toStringAsFixed(1)} kg',
         ),
       ),
     );
@@ -73,22 +76,24 @@ class _HeightScreenState extends State<HeightScreen> {
       MaterialPageRoute(
         builder:
             (context) =>
-                CurrentWeightScreen(registrationData: updatedRegistrationData),
+                TargetWeightScreen(registrationData: updatedRegistrationData),
       ),
     );
   }
 
   void _skipOnboarding() {
     // Logika ini sudah benar, state global diperbarui.
-    currentUserProfile.value = currentUserProfile.value.copyWith(heightCm: 0.0);
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      currentWeightKg: 0.0,
+    );
 
     final updatedRegistrationData = Map<String, dynamic>.from(
       widget.registrationData,
     );
-    updatedRegistrationData['heightCm'] = 0.0;
+    updatedRegistrationData['currentWeightKg'] = 0.0;
 
     debugPrint(
-      'Skip Onboarding dari Height Screen menuju Current Weight Screen.',
+      'Skip Onboarding dari Current Weight Screen menuju Target Weight Screen.',
     );
     debugPrint('  - RegistrationData: $updatedRegistrationData');
     debugPrint(
@@ -98,7 +103,7 @@ class _HeightScreenState extends State<HeightScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Melewati pengisian tinggi badan, melanjutkan ke berat badan saat ini',
+          'Melewati pengisian berat badan saat ini, melanjutkan ke target berat badan',
         ),
       ),
     );
@@ -107,14 +112,14 @@ class _HeightScreenState extends State<HeightScreen> {
       MaterialPageRoute(
         builder:
             (context) =>
-                CurrentWeightScreen(registrationData: updatedRegistrationData),
+                TargetWeightScreen(registrationData: updatedRegistrationData),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Kode build tetap sama, tidak ada perubahan di sini.
+    // Kode build tetap sama persis karena sudah menggunakan `_CurvedWeightScalePainter` yang benar.
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -150,8 +155,8 @@ class _HeightScreenState extends State<HeightScreen> {
                   style: TextStyle(
                     color: Colors.black,
                     fontSize: 16,
-                    fontFamily: 'Poppins',
                     fontWeight: FontWeight.w500,
+                    fontFamily: 'Poppins',
                   ),
                 ),
               ),
@@ -177,16 +182,16 @@ class _HeightScreenState extends State<HeightScreen> {
                 children: <TextSpan>[
                   const TextSpan(text: 'Berapa '),
                   TextSpan(
-                    text: 'tinggi badan',
+                    text: 'berat badan saat ini',
                     style: TextStyle(color: Theme.of(context).primaryColor),
                   ),
-                  const TextSpan(text: ' anda?'),
+                  const TextSpan(text: ' Anda?'),
                 ],
               ),
             ),
             const SizedBox(height: 10),
             Text(
-              'Kami akan menggunakan data ini untuk memberi anda jenis diet yang lebih baik untuk anda',
+              'Kami akan menggunakan data ini untuk memberi Anda jenis diet yang lebih baik untuk Anda',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -208,7 +213,7 @@ class _HeightScreenState extends State<HeightScreen> {
                     borderRadius: BorderRadius.circular(5),
                   ),
                   child: const Text(
-                    'cm',
+                    'kg',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -229,12 +234,13 @@ class _HeightScreenState extends State<HeightScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
             SizedBox(
               height: 180,
               child: ScrollSnapList(
                 itemBuilder: (context, index) {
-                  final double heightValue = (150 + index).toDouble();
-                  final bool isSelected = heightValue == _selectedHeight;
+                  final double weightValue = (40 + index).toDouble();
+                  final bool isSelected = weightValue == _selectedCurrentWeight;
 
                   return Container(
                     width: 120,
@@ -271,19 +277,22 @@ class _HeightScreenState extends State<HeightScreen> {
                                 : Colors.grey.shade600,
                         fontFamily: 'Poppins',
                       ),
-                      child: Text(heightValue.toStringAsFixed(0)),
+                      child: Text(weightValue.toStringAsFixed(0)),
                     ),
                   );
                 },
-                itemCount: 70, // Range dari 150 cm hingga 219 cm
+                itemCount: 121,
                 itemSize: 130,
                 onItemFocus: (index) {
                   setState(() {
-                    _selectedHeight = (150 + index).toDouble();
+                    _selectedCurrentWeight = (40 + index).toDouble();
                   });
                 },
                 initialIndex:
-                    ((_selectedHeight - 150).round().clamp(0, 69)).toDouble(),
+                    ((_selectedCurrentWeight - 40).round().clamp(
+                      0,
+                      120,
+                    )).toDouble(),
                 curve: Curves.easeOut,
                 duration: 300,
                 dynamicItemSize: true,
@@ -291,16 +300,19 @@ class _HeightScreenState extends State<HeightScreen> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: CustomPaint(
-                size: Size(MediaQuery.of(context).size.width - 40, 30),
-                painter: _HeightScalePainter(_selectedHeight.round()),
+              child: SizedBox(
+                height: 150,
+                child: CustomPaint(
+                  size: Size(MediaQuery.of(context).size.width - 40, 150),
+                  painter: _CurvedWeightScalePainter(
+                    _selectedCurrentWeight.round(),
+                  ),
+                ),
               ),
             ),
             const Spacer(),
-            const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
-              height: 55,
               child: ElevatedButton(
                 onPressed: _navigateToNextScreen,
                 style: ElevatedButton.styleFrom(
@@ -328,49 +340,42 @@ class _HeightScreenState extends State<HeightScreen> {
   }
 }
 
-class _HeightScalePainter extends CustomPainter {
-  final int selectedHeight;
+class _CurvedWeightScalePainter extends CustomPainter {
+  final int selectedWeight;
 
-  _HeightScalePainter(this.selectedHeight);
+  _CurvedWeightScalePainter(this.selectedWeight);
+
+  static const double tickLengthShort = 10;
+  static const double tickLengthLong = 15;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint =
+    final linePaint =
         Paint()
           ..color = Colors.grey.shade400
-          ..strokeWidth = 1;
+          ..strokeWidth = 1.5
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
 
-    final Paint selectedPaint =
+    final needlePaint =
         Paint()
           ..color = const Color(0xFFF2A900)
-          ..strokeWidth = 2;
-
-    const double tickHeightShort = 10;
-    const double tickHeightMedium = 12;
-    const double tickHeightLong = 15;
-
-    canvas.drawLine(
-      Offset(0, size.height / 2),
-      Offset(size.width, size.height / 2),
-      paint,
-    );
-
-    final double centerCanvasX = size.width / 2;
-    const double visibleUnitsRange = 30;
-    final double pixelsPerUnit = size.width / visibleUnitsRange;
+          ..strokeWidth = 3.5
+          ..strokeCap = StrokeCap.round;
 
     int centralDisplayLabel;
-    int nearestTen = (selectedHeight ~/ 10) * 10;
-    int remainder = selectedHeight % 10;
+    int nearestTen = (selectedWeight ~/ 10) * 10;
+    int remainder = selectedWeight % 10;
 
     if (remainder == 0) {
-      centralDisplayLabel = selectedHeight;
+      centralDisplayLabel = selectedWeight;
     } else if (remainder <= 5) {
       centralDisplayLabel = nearestTen;
     } else {
       centralDisplayLabel = nearestTen + 10;
     }
-    centralDisplayLabel = centralDisplayLabel.clamp(160, 210);
+
+    centralDisplayLabel = centralDisplayLabel.clamp(50, 150);
 
     final int minDisplayLabel = centralDisplayLabel - 10;
     final int maxDisplayLabel = centralDisplayLabel + 10;
@@ -378,65 +383,144 @@ class _HeightScalePainter extends CustomPainter {
     const int visualTickRangeExtension = 5;
     final int minTickValue = minDisplayLabel - visualTickRangeExtension;
     final int maxTickValue = maxDisplayLabel + visualTickRangeExtension;
+    final int totalVisualTickUnits = maxTickValue - minTickValue;
+
+    final double paddingX = 20;
+    final double startArcX = paddingX;
+    final double endArcX = size.width - paddingX;
+    final double arcLineY = size.height * 0.3;
+    final double arcSagitta = size.height * 0.25;
+    final double chordLength = endArcX - startArcX;
+    final double actualRadius =
+        (math.pow(chordLength, 2) / (8 * arcSagitta)) + (arcSagitta / 2);
+    final double actualArcCenterX = size.width / 2;
+    final double actualArcCenterY = arcLineY + actualRadius - arcSagitta;
+
+    final double visualScaleStartAngle = math.atan2(
+      arcLineY - actualArcCenterY,
+      startArcX - actualArcCenterX,
+    );
+    final double visualScaleEndAngle = math.atan2(
+      arcLineY - actualArcCenterY,
+      endArcX - actualArcCenterX,
+    );
+    final double visualScaleSweepAngle =
+        visualScaleEndAngle - visualScaleStartAngle;
+
+    final double anglePerUnit = visualScaleSweepAngle / totalVisualTickUnits;
+
+    canvas.drawArc(
+      Rect.fromCircle(
+        center: Offset(actualArcCenterX, actualArcCenterY),
+        radius: actualRadius,
+      ),
+      visualScaleStartAngle,
+      visualScaleSweepAngle,
+      false,
+      linePaint,
+    );
 
     for (int i = minTickValue; i <= maxTickValue; i++) {
-      double xPos = centerCanvasX + (i - selectedHeight) * pixelsPerUnit;
+      bool shouldDrawMajorLabel =
+          (i == minDisplayLabel ||
+              i == maxDisplayLabel ||
+              (i == centralDisplayLabel &&
+                  selectedWeight != centralDisplayLabel));
+      bool isMidTick = (i % 5 == 0 && !shouldDrawMajorLabel);
 
-      if (xPos >= 0 && xPos <= size.width) {
-        double currentTickHeight = tickHeightShort / 4;
+      final double currentAngle =
+          visualScaleStartAngle + (i - minTickValue) * anglePerUnit;
+      final double pointOnArcX =
+          actualArcCenterX + actualRadius * math.cos(currentAngle);
+      final double pointOnArcY =
+          actualArcCenterY + actualRadius * math.sin(currentAngle);
 
-        bool shouldDrawMajorLabel = false;
-        if (i == minDisplayLabel || i == maxDisplayLabel) {
-          shouldDrawMajorLabel = true;
-          currentTickHeight = tickHeightLong;
-        } else if (i == centralDisplayLabel) {
-          if (selectedHeight != centralDisplayLabel) {
-            shouldDrawMajorLabel = true;
-          }
-          currentTickHeight = tickHeightLong;
-        } else if (i % 5 == 0) {
-          currentTickHeight = tickHeightMedium;
-        }
+      final double dx = pointOnArcX - actualArcCenterX;
+      final double dy = pointOnArcY - actualArcCenterY;
+      final double normalizeFactor = math.sqrt(dx * dx + dy * dy);
+      final double normalX = dx / normalizeFactor;
+      final double normalY = dy / normalizeFactor;
 
-        canvas.drawLine(
-          Offset(xPos, size.height / 2 - currentTickHeight / 2),
-          Offset(xPos, size.height / 2 + currentTickHeight / 2),
-          paint,
+      Offset tickStart = Offset(pointOnArcX, pointOnArcY);
+      double currentTickLength = tickLengthShort / 2;
+      if (shouldDrawMajorLabel) {
+        currentTickLength = tickLengthLong;
+      } else if (isMidTick) {
+        currentTickLength = tickLengthShort;
+      }
+
+      Offset tickEnd = Offset(
+        pointOnArcX - normalX * currentTickLength,
+        pointOnArcY - normalY * currentTickLength,
+      );
+      canvas.drawLine(tickStart, tickEnd, linePaint);
+
+      if (shouldDrawMajorLabel) {
+        TextPainter textPainter = TextPainter(
+          text: TextSpan(
+            text: '$i',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 14,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+
+        final double textOffset = currentTickLength + 8;
+        textPainter.paint(
+          canvas,
+          Offset(
+            pointOnArcX - normalX * textOffset - textPainter.width / 2,
+            pointOnArcY - normalY * textOffset - textPainter.height / 2,
+          ),
         );
-
-        if (shouldDrawMajorLabel) {
-          TextPainter textPainter = TextPainter(
-            text: TextSpan(
-              text: '$i',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-                fontFamily: 'Poppins',
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
-          textPainter.paint(
-            canvas,
-            Offset(
-              xPos - textPainter.width / 2,
-              size.height / 2 + currentTickHeight / 2 + 5,
-            ),
-          );
-        }
       }
     }
 
+    final double needleAngle =
+        visualScaleStartAngle + (selectedWeight - minTickValue) * anglePerUnit;
+    final double pointOnArcSelectedX =
+        actualArcCenterX + actualRadius * math.cos(needleAngle);
+    final double pointOnArcSelectedY =
+        actualArcCenterY + actualRadius * math.sin(needleAngle);
+
+    final double needleStartX = pointOnArcSelectedX;
+    final double needleStartY = pointOnArcSelectedY + 40;
+    final double needleEndX = pointOnArcSelectedX;
+    final double needleEndY = pointOnArcSelectedY;
+
     canvas.drawLine(
-      Offset(centerCanvasX, size.height / 2 - tickHeightLong / 2),
-      Offset(centerCanvasX, size.height / 2 + tickHeightLong / 2),
-      selectedPaint,
+      Offset(needleStartX, needleStartY),
+      Offset(needleEndX, needleEndY),
+      needlePaint,
+    );
+
+    TextPainter textSelectedPaint = TextPainter(
+      text: TextSpan(
+        text: '$selectedWeight',
+        style: const TextStyle(
+          color: Color(0xFFF2A900),
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Poppins',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    textSelectedPaint.paint(
+      canvas,
+      Offset(needleStartX - textSelectedPaint.width / 2, needleStartY + 8),
     );
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    _HeightScalePainter old = oldDelegate as _HeightScalePainter;
-    return old.selectedHeight != selectedHeight;
+    if (oldDelegate is _CurvedWeightScalePainter) {
+      return oldDelegate.selectedWeight != selectedWeight;
+    }
+    return true;
   }
 }

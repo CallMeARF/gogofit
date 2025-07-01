@@ -7,6 +7,7 @@ import 'package:gogofit_frontend/screens/daily_log_screen.dart';
 import 'package:gogofit_frontend/screens/more_options_screen.dart';
 import 'package:gogofit_frontend/models/notification_data.dart';
 import 'package:gogofit_frontend/screens/notifications_screen.dart';
+import 'package:gogofit_frontend/models/user_profile_data.dart'; // BARU: Import UserProfile model dan currentUserProfile
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -40,15 +41,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     0xFF4CAF50,
   ); // Hijau untuk status "Tercapai"
 
-  double _currentCaloriesConsumed = 0.0; // UBAH: Dari int menjadi double
+  double _currentCaloriesConsumed = 0.0;
   double _currentSugarConsumed = 0.0;
 
-  final double _targetDailyCalories = 1340.0; // UBAH: Dari int menjadi double
-  final double _burnedCaloriesFromExercise =
-      190.0; // UBAH: Dari int menjadi double
-  final double _targetDailySugar = 30.0;
+  // Nilai _burnedCaloriesFromExercise untuk saat ini tetap statis
+  final double _burnedCaloriesFromExercise = 190.0; // Dari perencanaan fitur
 
-  final double _calorieTolerance = 50.0; // UBAH: Dari int menjadi double
+  final double _calorieTolerance = 50.0;
   final double _sugarTolerance = 0.0; // Toleransi gula tetap 0.0
 
   @override
@@ -56,11 +55,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _updateTotals();
     userMeals.addListener(_updateTotals);
+    // BARU: Tambahkan listener untuk perubahan profil pengguna
+    currentUserProfile.addListener(_updateTotals);
   }
 
   @override
   void dispose() {
     userMeals.removeListener(_updateTotals);
+    // BARU: Hapus listener untuk perubahan profil pengguna
+    currentUserProfile.removeListener(_updateTotals);
     super.dispose();
   }
 
@@ -75,29 +78,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint(
         'DEBUG Dashboard: Gula Konsumsi Saat Ini: $_currentSugarConsumed gram',
       );
+      // Data profil juga akan memicu rebuild via listener, jadi nilai target akan diperbarui otomatis
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // BARU: Ambil target kalori dan gula dari profil pengguna yang dinamis
+    // PERBAIKAN LINT: Hapus underscore dari nama variabel lokal
+    final double targetDailyCalories =
+        currentUserProfile.value.calculatedTargetCalories;
+    final double targetDailySugar =
+        currentUserProfile.value.calculatedTargetSugar;
+
     // Definisi Kalori Bersih: Kalori dari Makanan dikurangi Kalori Latihan
-    // Ini adalah nilai yang akan dibandingkan dengan target
-    double netCalories =
-        _currentCaloriesConsumed -
-        _burnedCaloriesFromExercise; // UBAH: Dari int menjadi double
+    double netCalories = _currentCaloriesConsumed - _burnedCaloriesFromExercise;
 
     // Persentase untuk arc didasarkan pada netCalories dibandingkan target
     double caloriePercentage = 0.0;
-    if (_targetDailyCalories > 0) {
-      // Pastikan netCalories tidak negatif sebelum perhitungan persentase
+    if (targetDailyCalories > 0) {
       caloriePercentage = (netCalories.clamp(0.0, double.infinity) /
-              _targetDailyCalories)
+              targetDailyCalories)
           .clamp(0.0, 1.0);
     }
 
     double sugarPercentage = 0.0;
-    if (_targetDailySugar > 0) {
-      sugarPercentage = (_currentSugarConsumed / _targetDailySugar).clamp(
+    if (targetDailySugar > 0) {
+      sugarPercentage = (_currentSugarConsumed / targetDailySugar).clamp(
         0.0,
         1.0,
       );
@@ -108,25 +115,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String calorieValue;
     Color calorieValueColor;
 
-    if (netCalories >= _targetDailyCalories - _calorieTolerance &&
-        netCalories <= _targetDailyCalories + _calorieTolerance) {
+    if (netCalories >= targetDailyCalories - _calorieTolerance &&
+        netCalories <= targetDailyCalories + _calorieTolerance) {
       // Tercapai dalam toleransi
       calorieUnit = 'Tercapai!';
       calorieValue = '0'; // Tampilkan 0 karena sudah tercapai
       calorieValueColor = successGreenColor;
-    } else if (netCalories > _targetDailyCalories + _calorieTolerance) {
+    } else if (netCalories > targetDailyCalories + _calorieTolerance) {
       // Kelebihan (Kalori bersih melebihi target)
       calorieUnit = 'Kelebihan';
-      calorieValue = (netCalories - _targetDailyCalories).toStringAsFixed(
-        0,
-      ); // UBAH: Format desimal
+      calorieValue = (netCalories - targetDailyCalories).toStringAsFixed(0);
       calorieValueColor = alertRedColor;
     } else {
       // Sisa (Kalori bersih di bawah target)
       calorieUnit = 'Sisa';
-      calorieValue = (_targetDailyCalories - netCalories).toStringAsFixed(
-        0,
-      ); // UBAH: Format desimal
+      calorieValue = (targetDailyCalories - netCalories).toStringAsFixed(0);
       calorieValueColor = Colors.white;
     }
 
@@ -135,28 +138,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String sugarValue;
     Color sugarValueColor;
 
-    double remainingSugarCalc = _targetDailySugar - _currentSugarConsumed;
+    double remainingSugarCalc = targetDailySugar - _currentSugarConsumed;
 
     // Gula Tercapai jika persis sama dengan target
-    if ((_currentSugarConsumed - _targetDailySugar).abs() < 0.001) {
-      // UBAH: Gunakan toleransi kecil untuk perbandingan double
+    if ((_currentSugarConsumed - targetDailySugar).abs() < 0.001) {
       sugarUnit = 'Tercapai!';
       sugarValue = '0'; // Tampilkan 0 karena sudah tercapai
       sugarValueColor = successGreenColor;
-    } else if (_currentSugarConsumed > _targetDailySugar + _sugarTolerance) {
+    } else if (_currentSugarConsumed > targetDailySugar + _sugarTolerance) {
       // Total gula > 30.0 (karena toleransi 0.0)
       // Kelebihan
       sugarUnit = 'Kelebihan';
-      sugarValue = (_currentSugarConsumed - _targetDailySugar).toStringAsFixed(
-        1, // UBAH: Menampilkan satu angka desimal
+      sugarValue = (_currentSugarConsumed - targetDailySugar).toStringAsFixed(
+        1,
       );
       sugarValueColor = alertRedColor;
     } else {
       // Sisa
       sugarUnit = 'Sisa';
-      sugarValue = remainingSugarCalc.toStringAsFixed(
-        1,
-      ); // UBAH: Menampilkan satu angka desimal
+      sugarValue = remainingSugarCalc.toStringAsFixed(1);
       sugarValueColor = Colors.white;
     }
 
@@ -260,21 +260,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
               // Calorie Card
               _buildMetricCard(
+                // PANGGILAN SUDAH BENAR
                 context,
                 title: 'Kalori',
                 currentValue:
                     calorieValue, // Sisa/Tercapai/Kelebihan dari netCalories
                 unit: calorieUnit, // Unit: Sisa/Tercapai/Kelebihan
                 valueColor: calorieValueColor, // Warna dinamis
-                target: _targetDailyCalories.toStringAsFixed(
+                target: targetDailyCalories.toStringAsFixed(
                   0,
-                ), // UBAH: Format desimal
-                consumed: _currentCaloriesConsumed.toStringAsFixed(
-                  0,
-                ), // UBAH: Format desimal
-                exercise: _burnedCaloriesFromExercise.toStringAsFixed(
-                  0,
-                ), // UBAH: Format desimal
+                ), // Gunakan nilai dinamis
+                consumed: _currentCaloriesConsumed.toStringAsFixed(0),
+                exercise: _burnedCaloriesFromExercise.toStringAsFixed(0),
                 arcColor: orangeColor,
                 consumedIcon: Icons.restaurant_menu,
                 exerciseIcon: Icons.local_fire_department,
@@ -285,18 +282,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
               // Sugar Card
               _buildMetricCard(
+                // PANGGILAN SUDAH BENAR
                 context,
                 title: 'Gula',
                 currentValue:
                     sugarValue, // Gunakan nilai yang sudah disesuaikan
                 unit: sugarUnit, // Gunakan unit yang sudah disesuaikan
                 valueColor: sugarValueColor, // Gunakan warna dinamis
-                target: _targetDailySugar.toStringAsFixed(
+                target: targetDailySugar.toStringAsFixed(
                   1,
-                ), // UBAH: Format desimal
-                consumed: _currentSugarConsumed.toStringAsFixed(
-                  1,
-                ), // UBAH: Format desimal
+                ), // Gunakan nilai dinamis
+                consumed: _currentSugarConsumed.toStringAsFixed(1),
                 arcColor: sugarArcNewColor,
                 consumedIcon: Icons.restaurant_menu,
                 percentage: sugarPercentage,
@@ -472,6 +468,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // Widget helper to create metric cards (Calories, Sugar)
+  // PERBAIKAN: Pindahkan metode ini ke dalam kelas _DashboardScreenState
   Widget _buildMetricCard(
     BuildContext context, {
     required String title,
@@ -535,6 +532,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 height: 120,
                 child: CustomPaint(
                   painter: _ArcPainter(
+                    // PANGGILAN SUDAH BENAR
                     arcColor: arcColor,
                     backgroundColor: white20Opacity,
                     percentage: percentage,
@@ -573,6 +571,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     if (target != null)
                       _buildDetailRow(
+                        // PANGGILAN SUDAH BENAR
                         icon: Icons.flag,
                         label: 'Sasaran Dasar',
                         value: targetDisplay,
@@ -581,6 +580,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     // Menampilkan Kalori Makanan yang murni (_currentCaloriesConsumed)
                     _buildDetailRow(
+                      // PANGGILAN SUDAH BENAR
                       icon: consumedIcon,
                       label: 'Makanan',
                       value: consumedDisplay,
@@ -589,6 +589,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     if (exercise != null && exerciseIcon != null)
                       _buildDetailRow(
+                        // PANGGILAN SUDAH BENAR
                         icon: exerciseIcon,
                         label: 'Latihan',
                         value: exerciseDisplay,
@@ -606,6 +607,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // Widget helper to create detail rows in metric cards with a vertical separator line
+  // PERBAIKAN: Pindahkan metode ini ke dalam kelas _DashboardScreenState
   Widget _buildDetailRow({
     required IconData icon,
     required String label,
@@ -650,6 +652,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 // CustomPainter for drawing arc/donut chart
+// PERBAIKAN: Biarkan kelas ini di luar kelas _DashboardScreenState
 class _ArcPainter extends CustomPainter {
   final Color arcColor;
   final Color backgroundColor;

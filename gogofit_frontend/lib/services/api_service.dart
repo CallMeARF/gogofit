@@ -45,7 +45,7 @@ class ApiService {
           // Pastikan context aktif
           ApiService.navigatorKey.currentState!.pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (Route<dynamic> route) => false,
+            (Route<dynamic> route) => false, // Hapus semua route sebelumnya
           );
         }
         throw UnauthorizedException(
@@ -216,6 +216,8 @@ class ApiService {
     double? currentWeightKg,
     double? targetWeightKg,
     String? purpose,
+    // BARU: Tambahkan parameter activityLevel
+    String? activityLevel,
   }) async {
     final body = {
       'name': name,
@@ -228,6 +230,8 @@ class ApiService {
       'weight': currentWeightKg,
       'target_weight': targetWeightKg,
       'goal': purpose,
+      // BARU: Tambahkan activity_level ke body request
+      'activity_level': activityLevel,
     };
 
     body.removeWhere((key, value) => value == null);
@@ -298,8 +302,7 @@ class ApiService {
 
   // Memperbarui profil pengguna
   Future<Map<String, dynamic>> updateProfile(UserProfile profile) async {
-    String? beGoal = _mapPurposeEnumToString(profile.purpose);
-
+    // Perbaikan: Mapping gender dan purpose ke string BE di sini
     String? beGender;
     if (profile.gender == 'Laki-laki') {
       beGender = 'male';
@@ -307,15 +310,22 @@ class ApiService {
       beGender = 'female';
     }
 
+    String? beGoal = _mapPurposeEnumToString(profile.purpose);
+    String? beActivityLevel = getActivityLevelBackendString(
+      profile.activityLevel,
+    ); // BARU: Ambil activity level backend string
+
     final Map<String, dynamic> body = {
       'name': profile.name,
       'email': profile.email,
-      'gender': beGender,
+      'gender': beGender, // Gunakan gender yang sudah dipetakan
       'birth_date': profile.birthDate.toIso8601String().split('T')[0],
       'height': profile.heightCm,
       'weight': profile.currentWeightKg,
       'target_weight': profile.targetWeightKg,
-      'goal': beGoal,
+      'goal': beGoal, // Gunakan goal yang sudah dipetakan
+      'activity_level':
+          beActivityLevel, // BARU: Tambahkan activity level ke body update
     };
 
     body.removeWhere((key, value) => value == null);
@@ -350,9 +360,6 @@ class ApiService {
   // --- API untuk Logout ---
   Future<Map<String, dynamic>> logout() async {
     try {
-      // Endpoint logout ini juga perlu token, tapi tidak akan memicu UnauthorizedException jika token sudah tidak valid
-      // karena logout bisa jadi adalah upaya terakhir pengguna. Namun, kita tetap ingin AuthTokenManager.clearAuthToken()
-      // terpicu.
       final response = await post(
         'auth/logout',
         {},
@@ -603,8 +610,8 @@ class ApiService {
         return 'gain_weight';
       case DietPurpose.maintainHealth:
         return 'stay_healthy';
-      case DietPurpose.other:
-        return null;
+      // case DietPurpose.other: // DIHAPUS, JANGAN DITAMBAHKAN KEMBALI
+      //   return null; // DIHAPUS
     }
   }
 }

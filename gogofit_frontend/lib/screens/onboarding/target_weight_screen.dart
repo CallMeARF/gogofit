@@ -1,12 +1,12 @@
 // lib/screens/onboarding/target_weight_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:gogofit_frontend/screens/onboarding/purpose_screen.dart'; // Import halaman tujuan
+import 'package:gogofit_frontend/screens/onboarding/activity_level_screen.dart';
+import 'package:gogofit_frontend/models/user_profile_data.dart';
 import 'package:scroll_snap_list/scroll_snap_list.dart';
-import 'dart:math' as math; // Import ini untuk math.cos dan math.sin
+import 'dart:math' as math;
 
 class TargetWeightScreen extends StatefulWidget {
-  // BARU: Menerima data registrasi dari layar sebelumnya
   final Map<String, dynamic> registrationData;
 
   const TargetWeightScreen({super.key, required this.registrationData});
@@ -16,31 +16,54 @@ class TargetWeightScreen extends StatefulWidget {
 }
 
 class _TargetWeightScreenState extends State<TargetWeightScreen> {
-  // Mengubah _selectedWeight menjadi double untuk konsistensi dengan BE
-  double _selectedWeight = 60.0; // Nilai default sesuai mockup
+  double _selectedWeight = 60.0; // Nilai default
 
   @override
   void initState() {
     super.initState();
-    // Inisialisasi target weight jika sudah ada di data (misal dari edit profil atau skip)
+
+    double initialWeight;
     if (widget.registrationData.containsKey('targetWeightKg') &&
         widget.registrationData['targetWeightKg'] != null) {
-      _selectedWeight =
+      initialWeight =
           (widget.registrationData['targetWeightKg'] as num).toDouble();
+    } else if (currentUserProfile.value.targetWeightKg > 0.0) {
+      initialWeight = currentUserProfile.value.targetWeightKg;
+    } else {
+      initialWeight = 60.0; // Default fallback
     }
+
+    _selectedWeight = initialWeight;
+
+    // PERBAIKAN: Sinkronkan nilai awal ke state global untuk konsistensi.
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      targetWeightKg: _selectedWeight,
+    );
+    debugPrint(
+      'TargetWeightScreen initState: currentUserProfile updated with target weight: $_selectedWeight',
+    );
   }
 
   void _navigateToNextScreen() {
-    // Akumulasikan data yang sudah ada dan tambahkan data baru dari layar ini
+    // Logika ini sudah benar, state global diperbarui.
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      targetWeightKg: _selectedWeight,
+    );
+
     final updatedRegistrationData = Map<String, dynamic>.from(
       widget.registrationData,
     );
-    updatedRegistrationData['targetWeightKg'] =
-        _selectedWeight; // Simpan target berat badan yang dipilih
+    updatedRegistrationData['targetWeightKg'] = _selectedWeight;
 
+    // Menambahkan debug print yang lebih detail
     debugPrint(
-      'Target berat badan terpilih: $_selectedWeight kg, melanjutkan ke Purpose Screen dengan data: $updatedRegistrationData',
+      'Target berat badan terpilih: ${_selectedWeight.toStringAsFixed(1)} kg, melanjutkan ke Activity Level Screen.',
     );
+    debugPrint('  - RegistrationData: $updatedRegistrationData');
+    debugPrint(
+      '  - CurrentProfile State: ${currentUserProfile.value.toJson()}',
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -49,49 +72,54 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
       ),
     );
 
-    // Navigasi ke halaman PurposeScreen dengan meneruskan data yang sudah terakumulasi
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => PurposeScreen(
-              registrationData: updatedRegistrationData, // Teruskan data
-            ),
+            (context) =>
+                ActivityLevelScreen(registrationData: updatedRegistrationData),
       ),
     );
   }
 
-  // Fungsi untuk 'Skip'
   void _skipOnboarding() {
+    // Logika ini sudah benar, state global diperbarui.
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      targetWeightKg: 0.0,
+    );
+
     final updatedRegistrationData = Map<String, dynamic>.from(
       widget.registrationData,
     );
-    updatedRegistrationData['targetWeightKg'] =
-        null; // Jika diskip, set target weight ke null
+    updatedRegistrationData['targetWeightKg'] = 0.0;
 
     debugPrint(
-      'Skip Onboarding dari Target Weight Screen menuju Purpose Screen dengan data: $updatedRegistrationData',
+      'Skip Onboarding dari Target Weight Screen menuju Activity Level Screen.',
     );
+    debugPrint('  - RegistrationData: $updatedRegistrationData');
+    debugPrint(
+      '  - CurrentProfile State: ${currentUserProfile.value.toJson()}',
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Melewati pengisian target berat badan, melanjutkan ke tujuan',
+          'Melewati pengisian target berat badan, melanjutkan ke tingkat aktivitas',
         ),
       ),
     );
-    // Navigasi ke halaman PurposeScreen saat tombol 'Skip' ditekan
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => PurposeScreen(
-              registrationData:
-                  updatedRegistrationData, // Teruskan data yang sudah terakumulasi
-            ),
+            (context) =>
+                ActivityLevelScreen(registrationData: updatedRegistrationData),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Kode build tetap sama.
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -101,14 +129,11 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
           padding: const EdgeInsets.only(left: 10.0, top: 5.0, bottom: 5.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.grey.shade200, // Warna abu-abu background icon back
+              color: Colors.grey.shade200,
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios,
-                color: Colors.black,
-              ), // Warna ikon back hitam
+              icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -120,21 +145,17 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
             padding: const EdgeInsets.only(right: 10.0, top: 5.0, bottom: 5.0),
             child: Container(
               decoration: BoxDecoration(
-                color:
-                    Colors
-                        .grey
-                        .shade200, // Warna abu-abu background tombol Skip
+                color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: TextButton(
-                onPressed: _skipOnboarding, // Panggil fungsi skip
+                onPressed: _skipOnboarding,
                 child: const Text(
                   'Skip',
                   style: TextStyle(
-                    color: Colors.black, // Warna teks Skip hitam
+                    color: Colors.black,
                     fontSize: 16,
-                    fontFamily: 'Poppins', // Font Poppins
-                    fontWeight: FontWeight.w500, // SemiBold atau Medium
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -151,19 +172,17 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
             RichText(
               textAlign: TextAlign.center,
               text: TextSpan(
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF002033), // Darker Blue
-                  fontFamily: 'Poppins', // Font Poppins
+                  color: Color(0xFF002033),
+                  fontFamily: 'Poppins',
                 ),
                 children: <TextSpan>[
                   const TextSpan(text: 'Target '),
                   TextSpan(
                     text: 'berat badan',
-                    style: TextStyle(
-                      color: Theme.of(context).primaryColor,
-                    ), // Normal Blue
+                    style: TextStyle(color: Theme.of(context).primaryColor),
                   ),
                   const TextSpan(text: ' anda'),
                 ],
@@ -171,12 +190,12 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Kami akan menggunakan data ini untuk memberi Anda jenis diet yang lebih baik untuk Anda', // Teks Indonesia
+              'Kami akan menggunakan data ini untuk memberi Anda jenis diet yang lebih baik untuk Anda',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600, // Warna abu-abu yang lebih sesuai
-                fontFamily: 'Poppins', // Font Poppins
+                color: Colors.grey.shade600,
+                fontFamily: 'Poppins',
               ),
             ),
             const SizedBox(height: 50),
@@ -189,57 +208,42 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(
-                      0xFF015C91,
-                    ), // Normal Blue dari palet Anda
+                    color: const Color(0xFF015C91),
                     borderRadius: BorderRadius.circular(5),
                   ),
                   child: const Text(
-                    'kg', // Label 'kg'
+                    'kg',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      fontFamily: 'Poppins', // Font Poppins
+                      fontFamily: 'Poppins',
                     ),
                   ),
                 ),
               ],
             ),
             Align(
-              // Indikator panah di atas picker
               alignment: Alignment.center,
               child: Transform.translate(
-                offset: const Offset(
-                  0,
-                  10,
-                ), // Geser sedikit ke bawah agar lebih pas
+                offset: const Offset(0, 10),
                 child: const Icon(
                   Icons.arrow_drop_down,
-                  color: Color(0xFFF2A900), // Warna oranye seperti mockup
+                  color: Color(0xFFF2A900),
                   size: 40,
                 ),
               ),
             ),
-            const SizedBox(
-              height: 20,
-            ), // Memberikan sedikit jarak dari unit kg/lb
-
+            const SizedBox(height: 20),
             SizedBox(
-              height:
-                  180, // Tinggi yang sama dengan HeightScreen untuk konsistensi
+              height: 180,
               child: ScrollSnapList(
                 itemBuilder: (context, index) {
-                  // Menggunakan double untuk weightValue
-                  final double weightValue =
-                      (40 + index).toDouble(); // Range dari 40 kg
+                  final double weightValue = (40 + index).toDouble();
                   final bool isSelected = weightValue == _selectedWeight;
 
                   return Container(
-                    width: 120, // Lebar setiap item
-                    height:
-                        isSelected
-                            ? 150
-                            : 130, // Tinggi yang sama dengan HeightScreen
+                    width: 120,
+                    height: isSelected ? 150 : 130,
                     margin: const EdgeInsets.symmetric(
                       horizontal: 5,
                       vertical: 5,
@@ -247,21 +251,13 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
                     decoration: BoxDecoration(
                       color:
                           isSelected
-                              ? const Color(
-                                0xFFB0CCDD,
-                              ) // Light :active Blue saat terpilih
-                              : const Color(
-                                0xFFE6EFF4,
-                              ), // Light Blue saat tidak terpilih (default background)
-                      borderRadius: BorderRadius.circular(
-                        8,
-                      ), // Border radius 8px
+                              ? const Color(0xFFB0CCDD)
+                              : const Color(0xFFE6EFF4),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color:
                             isSelected
-                                ? const Color(
-                                  0xFF015C91,
-                                ) // Normal Blue untuk border terpilih
+                                ? const Color(0xFF015C91)
                                 : Colors.transparent,
                         width: isSelected ? 2 : 0,
                       ),
@@ -276,47 +272,35 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
                             isSelected ? FontWeight.bold : FontWeight.normal,
                         color:
                             isSelected
-                                ? const Color(
-                                  0xFF002033,
-                                ) // Darker Blue untuk angka terpilih
-                                : Colors
-                                    .grey
-                                    .shade600, // Warna abu-abu untuk angka tidak terpilih
-                        fontFamily: 'Poppins', // Font Poppins
+                                ? const Color(0xFF002033)
+                                : Colors.grey.shade600,
+                        fontFamily: 'Poppins',
                       ),
-                      child: Text(
-                        weightValue.toStringAsFixed(0),
-                      ), // Tampilkan sebagai int untuk berat
+                      child: Text(weightValue.toStringAsFixed(0)),
                     ),
                   );
                 },
-                itemCount: 120, // Range dari 40 kg hingga 159 kg (40+119)
-                itemSize: 130, // Lebar item + margin (120 + 5 + 5)
+                itemCount: 120,
+                itemSize: 130,
                 onItemFocus: (index) {
                   setState(() {
-                    _selectedWeight =
-                        (40 + index).toDouble(); // Simpan selalu dalam KG
+                    _selectedWeight = (40 + index).toDouble();
                   });
                 },
                 initialIndex:
-                    (_selectedWeight - 40)
-                        .round()
-                        .toDouble(), // Atur item awal yang terfokus
+                    ((_selectedWeight - 40).round().clamp(0, 119)).toDouble(),
                 curve: Curves.easeOut,
                 duration: 300,
                 dynamicItemSize: true,
               ),
             ),
-            // CustomPaint untuk skala busur di bawah
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: SizedBox(
-                height: 150, // Tinggi yang cukup untuk skala
+                height: 150,
                 child: CustomPaint(
                   size: Size(MediaQuery.of(context).size.width - 40, 150),
-                  painter: _CurvedScalePainter(
-                    _selectedWeight.round(), // Hanya kirim selectedWeight (int)
-                  ),
+                  painter: _CurvedScalePainter(_selectedWeight.round()),
                 ),
               ),
             ),
@@ -325,25 +309,25 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _navigateToNextScreen, // Panggil fungsi navigasi
+                onPressed: _navigateToNextScreen,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF01456D), // Dark Blue
+                  backgroundColor: const Color(0xFF01456D),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8), // Sudut tombol 8px
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 5,
                   textStyle: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    fontFamily: 'Poppins', // Font Poppins
+                    fontFamily: 'Poppins',
                   ),
                 ),
-                child: const Text('Next'), // Child argument last
+                child: const Text('Next'),
               ),
             ),
-            const SizedBox(height: 150),
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -351,9 +335,8 @@ class _TargetWeightScreenState extends State<TargetWeightScreen> {
   }
 }
 
-// Custom Painter untuk menggambar skala berbentuk busur dinamis
 class _CurvedScalePainter extends CustomPainter {
-  final int selectedWeight; // Hanya selectedWeight (dalam KG)
+  final int selectedWeight;
 
   _CurvedScalePainter(this.selectedWeight);
 
@@ -362,23 +345,19 @@ class _CurvedScalePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint linePaint =
+    final linePaint =
         Paint()
-          ..color =
-              Colors
-                  .grey
-                  .shade400 // Warna garis skala abu-abu (dari palet: Colors.grey.shade400)
+          ..color = Colors.grey.shade400
           ..strokeWidth = 1.5
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round;
 
-    final Paint needlePaint =
+    final needlePaint =
         Paint()
-          ..color = const Color(0xFFF2A900) // Warna oranye untuk jarum
+          ..color = const Color(0xFFF2A900)
           ..strokeWidth = 3.5
           ..strokeCap = StrokeCap.round;
 
-    // --- Kalkulasi Rentang Angka Tampilan Dinamis ---
     int centralDisplayLabel;
     int nearestTen = (selectedWeight ~/ 10) * 10;
     int remainder = selectedWeight % 10;
@@ -401,14 +380,11 @@ class _CurvedScalePainter extends CustomPainter {
     final int maxTickValue = maxDisplayLabel + visualTickRangeExtension;
     final int totalVisualTickUnits = maxTickValue - minTickValue;
 
-    // --- Definisi dan Perhitungan Busur ---
     final double paddingX = 20;
     final double startArcX = paddingX;
     final double endArcX = size.width - paddingX;
     final double arcLineY = size.height * 0.3;
-
     final double arcSagitta = size.height * 0.25;
-
     final double chordLength = endArcX - startArcX;
     final double actualRadius =
         (math.pow(chordLength, 2) / (8 * arcSagitta)) + (arcSagitta / 2);
@@ -426,6 +402,8 @@ class _CurvedScalePainter extends CustomPainter {
     final double visualScaleSweepAngle =
         visualScaleEndAngle - visualScaleStartAngle;
 
+    final double anglePerUnit = visualScaleSweepAngle / totalVisualTickUnits;
+
     canvas.drawArc(
       Rect.fromCircle(
         center: Offset(actualArcCenterX, actualArcCenterY),
@@ -437,25 +415,16 @@ class _CurvedScalePainter extends CustomPainter {
       linePaint,
     );
 
-    final double anglePerUnit = visualScaleSweepAngle / totalVisualTickUnits;
-
     for (int i = minTickValue; i <= maxTickValue; i++) {
-      Offset tickEnd = Offset.zero;
-
-      bool shouldDrawMajorLabel = false;
-      if (i == minDisplayLabel || i == maxDisplayLabel) {
-        shouldDrawMajorLabel = true;
-      } else if (i == centralDisplayLabel &&
-          selectedWeight != centralDisplayLabel) {
-        shouldDrawMajorLabel = true;
-      }
-
-      bool isMidTick =
-          (i % 5 == 0 && !shouldDrawMajorLabel && i != centralDisplayLabel);
+      bool shouldDrawMajorLabel =
+          (i == minDisplayLabel ||
+              i == maxDisplayLabel ||
+              (i == centralDisplayLabel &&
+                  selectedWeight != centralDisplayLabel));
+      bool isMidTick = (i % 5 == 0 && !shouldDrawMajorLabel);
 
       final double currentAngle =
           visualScaleStartAngle + (i - minTickValue) * anglePerUnit;
-
       final double pointOnArcX =
           actualArcCenterX + actualRadius * math.cos(currentAngle);
       final double pointOnArcY =
@@ -476,7 +445,7 @@ class _CurvedScalePainter extends CustomPainter {
         currentTickLength = tickLengthShort;
       }
 
-      tickEnd = Offset(
+      Offset tickEnd = Offset(
         pointOnArcX - normalX * currentTickLength,
         pointOnArcY - normalY * currentTickLength,
       );
@@ -487,9 +456,9 @@ class _CurvedScalePainter extends CustomPainter {
           text: TextSpan(
             text: '$i',
             style: TextStyle(
-              color: Colors.grey.shade600, // Warna teks skala abu-abu
+              color: Colors.grey.shade600,
               fontSize: 14,
-              fontFamily: 'Poppins', // Font Poppins untuk teks skala
+              fontFamily: 'Poppins',
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -506,10 +475,8 @@ class _CurvedScalePainter extends CustomPainter {
       }
     }
 
-    // --- Menggambar Jarum Penunjuk ---
     final double needleAngle =
         visualScaleStartAngle + (selectedWeight - minTickValue) * anglePerUnit;
-
     final double pointOnArcSelectedX =
         actualArcCenterX + actualRadius * math.cos(needleAngle);
     final double pointOnArcSelectedY =
@@ -527,15 +494,14 @@ class _CurvedScalePainter extends CustomPainter {
       needlePaint,
     );
 
-    // --- Menggambar Angka Berat Badan Terpilih (dinamis) di bawah jarum ---
     TextPainter textSelectedPaint = TextPainter(
       text: TextSpan(
         text: '$selectedWeight',
         style: const TextStyle(
-          color: Color(0xFFF2A900), // Warna oranye
+          color: Color(0xFFF2A900),
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          fontFamily: 'Poppins', // Font Poppins
+          fontFamily: 'Poppins',
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -549,7 +515,9 @@ class _CurvedScalePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    _CurvedScalePainter old = oldDelegate as _CurvedScalePainter;
-    return old.selectedWeight != selectedWeight;
+    if (oldDelegate is _CurvedScalePainter) {
+      return oldDelegate.selectedWeight != selectedWeight;
+    }
+    return true;
   }
 }
