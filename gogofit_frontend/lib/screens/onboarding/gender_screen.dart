@@ -1,13 +1,13 @@
 // lib/screens/onboarding/gender_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:gogofit_frontend/screens/onboarding/birth_date_screen.dart'; // Import halaman tanggal lahir
+import 'package:gogofit_frontend/screens/onboarding/birth_date_screen.dart';
+// PERBAIKAN 1: Import model untuk mengakses currentUserProfile
+import 'package:gogofit_frontend/models/user_profile_data.dart';
 
 class GenderScreen extends StatefulWidget {
-  // BARU: Menerima data registrasi awal dari RegisterScreen
   final Map<String, dynamic> registrationData;
 
-  // FIX: Konstruktor yang benar untuk menerima registrationData
   const GenderScreen({super.key, required this.registrationData});
 
   @override
@@ -20,11 +20,24 @@ class _GenderScreenState extends State<GenderScreen> {
   @override
   void initState() {
     super.initState();
-    // Inisialisasi gender yang dipilih jika sudah ada di data (misal dari edit profil atau skip)
-    // Pastikan nilai 'gender' ada dan bukan null sebelum inisialisasi _selectedGender
+
+    // PERBAIKAN 2: Inisialisasi currentUserProfile dengan data dari RegisterScreen
+    // Ini adalah langkah kunci untuk mengisi nama dan email di awal.
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      name: widget.registrationData['name'] as String?,
+      email: widget.registrationData['email'] as String?,
+    );
+    debugPrint(
+      'GenderScreen initState: currentUserProfile initialized with name and email.',
+    );
+
+    // Logika yang sudah ada untuk mempertahankan pilihan jika pengguna kembali
     if (widget.registrationData.containsKey('gender') &&
         widget.registrationData['gender'] != null) {
       _selectedGender = widget.registrationData['gender'];
+    } else {
+      // Jika gender belum ada, kita juga bisa set dari state global jika ada
+      _selectedGender = currentUserProfile.value.gender;
     }
   }
 
@@ -36,42 +49,56 @@ class _GenderScreenState extends State<GenderScreen> {
       return;
     }
 
-    // Akumulasikan data yang sudah ada dan tambahkan data baru dari layar ini
+    // PERBAIKAN 3: Update currentUserProfile dengan gender yang dipilih
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      gender: _selectedGender,
+    );
+
+    // Akumulasikan data ke map lokal untuk diteruskan
     final updatedRegistrationData = Map<String, dynamic>.from(
       widget.registrationData,
     );
-    updatedRegistrationData['gender'] =
-        _selectedGender; // Simpan gender yang dipilih
+    updatedRegistrationData['gender'] = _selectedGender;
 
+    // Cetak kedua state untuk verifikasi
     debugPrint(
-      'Jenis Kelamin terpilih: $_selectedGender, melanjutkan ke BirthDateScreen dengan data: $updatedRegistrationData',
+      'Jenis Kelamin terpilih: $_selectedGender, melanjutkan ke BirthDateScreen.',
     );
+    debugPrint('  - RegistrationData: $updatedRegistrationData');
+    debugPrint(
+      '  - CurrentProfile State: ${currentUserProfile.value.toJson()}',
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Jenis Kelamin dipilih: $_selectedGender')),
     );
 
-    // Navigasi ke halaman BirthDateScreen dengan meneruskan data yang sudah terakumulasi
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => BirthDateScreen(
-              registrationData: updatedRegistrationData, // Teruskan data
-            ),
+            (context) =>
+                BirthDateScreen(registrationData: updatedRegistrationData),
       ),
     );
   }
 
-  // Fungsi untuk 'Skip'
   void _skipOnboarding() {
+    // Saat skip, kita tetap set gender ke default di state global
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      gender: 'Laki-laki', // Atau default lain yang sesuai
+    );
+
     final updatedRegistrationData = Map<String, dynamic>.from(
       widget.registrationData,
     );
-    // Jika diskip, pastikan gender menjadi null di data (atau sesuai kebutuhan backend)
-    updatedRegistrationData['gender'] = null;
+    updatedRegistrationData['gender'] = null; // Map bisa null untuk API
 
+    debugPrint('Skip Onboarding dari Gender Screen menuju BirthDateScreen.');
+    debugPrint('  - RegistrationData: $updatedRegistrationData');
     debugPrint(
-      'Skip Onboarding dari Gender Screen menuju BirthDateScreen dengan data: $updatedRegistrationData',
+      '  - CurrentProfile State: ${currentUserProfile.value.toJson()}',
     );
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
@@ -79,20 +106,19 @@ class _GenderScreenState extends State<GenderScreen> {
         ),
       ),
     );
-    // Navigasi ke halaman BirthDateScreen saat tombol 'Skip' ditekan
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => BirthDateScreen(
-              registrationData:
-                  updatedRegistrationData, // Teruskan data yang sudah terakumulasi
-            ),
+            (context) =>
+                BirthDateScreen(registrationData: updatedRegistrationData),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Tidak ada perubahan pada UI, jadi kode build tetap sama
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -102,14 +128,11 @@ class _GenderScreenState extends State<GenderScreen> {
           padding: const EdgeInsets.only(left: 10.0, top: 5.0, bottom: 5.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.grey.shade200, // Warna abu-abu background icon back
+              color: Colors.grey.shade200,
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios,
-                color: Colors.black,
-              ), // Warna ikon back hitam
+              icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -121,21 +144,18 @@ class _GenderScreenState extends State<GenderScreen> {
             padding: const EdgeInsets.only(right: 10.0, top: 5.0, bottom: 5.0),
             child: Container(
               decoration: BoxDecoration(
-                color:
-                    Colors
-                        .grey
-                        .shade200, // Warna abu-abu background tombol Skip
+                color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: TextButton(
-                onPressed: _skipOnboarding, // Panggil fungsi skip
+                onPressed: _skipOnboarding,
                 child: const Text(
                   'Skip',
                   style: TextStyle(
-                    color: Colors.black, // Warna teks Skip hitam
+                    color: Colors.black,
                     fontSize: 16,
-                    fontFamily: 'Poppins', // Font Poppins
-                    fontWeight: FontWeight.w500, // SemiBold atau Medium
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -152,19 +172,17 @@ class _GenderScreenState extends State<GenderScreen> {
             RichText(
               textAlign: TextAlign.center,
               text: TextSpan(
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF002033), // Darker Blue
-                  fontFamily: 'Poppins', // Font Poppins
+                  color: Color(0xFF002033),
+                  fontFamily: 'Poppins',
                 ),
                 children: <TextSpan>[
                   const TextSpan(text: 'Apa '),
                   TextSpan(
                     text: 'Jenis Kelamin',
-                    style: TextStyle(
-                      color: Theme.of(context).primaryColor,
-                    ), // Normal Blue
+                    style: TextStyle(color: Theme.of(context).primaryColor),
                   ),
                   const TextSpan(text: ' anda?'),
                 ],
@@ -176,8 +194,8 @@ class _GenderScreenState extends State<GenderScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600, // Warna abu-abu yang lebih sesuai
-                fontFamily: 'Poppins', // Font Poppins
+                color: Colors.grey.shade600,
+                fontFamily: 'Poppins',
               ),
             ),
             const SizedBox(height: 50),
@@ -188,30 +206,19 @@ class _GenderScreenState extends State<GenderScreen> {
                   child: GestureDetector(
                     onTap: () {
                       setState(() {
-                        _selectedGender =
-                            'Laki-laki'; // Ubah ke Bahasa Indonesia
+                        _selectedGender = 'Laki-laki';
                       });
                     },
                     child: Container(
                       height: 180,
                       decoration: BoxDecoration(
-                        color:
-                            _selectedGender == 'Laki-laki'
-                                ? const Color(
-                                  0xFFE6EFF4,
-                                ) // Light Blue saat terpilih
-                                : const Color(
-                                  0xFFE6EFF4,
-                                ), // Light Blue default (sesuai mockup)
+                        color: const Color(0xFFE6EFF4),
                         borderRadius: BorderRadius.circular(15),
                         border: Border.all(
                           color:
                               _selectedGender == 'Laki-laki'
-                                  ? const Color(
-                                    0xFF015C91,
-                                  ) // Normal Blue saat terpilih
-                                  : Colors
-                                      .transparent, // Transparan jika tidak terpilih
+                                  ? const Color(0xFF015C91)
+                                  : Colors.transparent,
                           width: _selectedGender == 'Laki-laki' ? 2 : 0,
                         ),
                       ),
@@ -219,18 +226,18 @@ class _GenderScreenState extends State<GenderScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Image.asset(
-                            'assets/images/male_icon.png', // Pastikan path asset ini benar
+                            'assets/images/male_icon.png',
                             height: 100,
                             width: 100,
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            'Laki-laki', // Ubah ke Bahasa Indonesia
+                          const Text(
+                            'Laki-laki',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF002033), // Darker Blue
-                              fontFamily: 'Poppins', // Font Poppins
+                              color: Color(0xFF002033),
+                              fontFamily: 'Poppins',
                             ),
                           ),
                         ],
@@ -243,30 +250,19 @@ class _GenderScreenState extends State<GenderScreen> {
                   child: GestureDetector(
                     onTap: () {
                       setState(() {
-                        _selectedGender =
-                            'Perempuan'; // Ubah ke Bahasa Indonesia
+                        _selectedGender = 'Perempuan';
                       });
                     },
                     child: Container(
                       height: 180,
                       decoration: BoxDecoration(
-                        color:
-                            _selectedGender == 'Perempuan'
-                                ? const Color(
-                                  0xFFE6EFF4,
-                                ) // Light Blue saat terpilih
-                                : const Color(
-                                  0xFFE6EFF4,
-                                ), // Light Blue default (sesuai mockup)
+                        color: const Color(0xFFE6EFF4),
                         borderRadius: BorderRadius.circular(15),
                         border: Border.all(
                           color:
                               _selectedGender == 'Perempuan'
-                                  ? const Color(
-                                    0xFF015C91,
-                                  ) // Normal Blue saat terpilih
-                                  : Colors
-                                      .transparent, // Transparan jika tidak terpilih
+                                  ? const Color(0xFF015C91)
+                                  : Colors.transparent,
                           width: _selectedGender == 'Perempuan' ? 2 : 0,
                         ),
                       ),
@@ -274,18 +270,18 @@ class _GenderScreenState extends State<GenderScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Image.asset(
-                            'assets/images/female_icon.png', // Pastikan path asset ini benar
+                            'assets/images/female_icon.png',
                             height: 100,
                             width: 100,
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            'Perempuan', // Ubah ke Bahasa Indonesia
+                          const Text(
+                            'Perempuan',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF002033), // Darker Blue
-                              fontFamily: 'Poppins', // Font Poppins
+                              color: Color(0xFF002033),
+                              fontFamily: 'Poppins',
                             ),
                           ),
                         ],
@@ -295,34 +291,31 @@ class _GenderScreenState extends State<GenderScreen> {
                 ),
               ],
             ),
-            const Spacer(), // Mendorong semua konten di atas ke atas layar
-            // Tombol "Next"
+            const Spacer(),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed:
-                    _selectedGender != null
-                        ? _navigateToNextScreen // Panggil fungsi navigasi
-                        : null, // Tombol dinonaktifkan jika belum ada pilihan gender
+                    _selectedGender != null ? _navigateToNextScreen : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF01456D), // Dark Blue
+                  backgroundColor: const Color(0xFF01456D),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8), // Sudut tombol 8px
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 5,
                   textStyle: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    fontFamily: 'Poppins', // Font Poppins
+                    fontFamily: 'Poppins',
                   ),
                 ),
                 child: const Text('Next'),
               ),
             ),
             const SizedBox(
-              height: 200, // Memberi sedikit padding dari bawah layar
+              height: 40, // Padding bawah
             ),
           ],
         ),

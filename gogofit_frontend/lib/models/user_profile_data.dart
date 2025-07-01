@@ -1,13 +1,8 @@
 // lib/models/user_profile_data.dart
-import 'package:flutter/foundation.dart'; // Tetap butuh ini untuk UniqueKey atau debugPrint
+import 'package:flutter/material.dart'; // PERBAIKAN: Tambahkan import ini untuk tipe data Color.
 
-// Enum untuk Tujuan Diet, konsisten dengan onboarding
-enum DietPurpose {
-  loseWeight,
-  gainWeight,
-  maintainHealth,
-  other, // Menambahkan 'other' untuk fleksibilitas
-}
+// Enum untuk Tujuan Diet
+enum DietPurpose { loseWeight, gainWeight, maintainHealth }
 
 // Helper untuk mendapatkan string dari enum (Enum Flutter -> String UI Flutter)
 String getDietPurposeString(DietPurpose purpose) {
@@ -18,16 +13,13 @@ String getDietPurposeString(DietPurpose purpose) {
       return 'Menaikkan Berat Badan';
     case DietPurpose.maintainHealth:
       return 'Menjaga Kesehatan';
-    case DietPurpose.other:
-      return 'Lainnya';
   }
 }
 
-// Helper untuk mendapatkan enum dari string (dari Backend, misal "lose_weight")
+// Helper untuk mendapatkan enum dari string (dari Backend)
 DietPurpose getDietPurposeEnum(String? purposeString) {
-  // Terima nullable string
   if (purposeString == null) {
-    return DietPurpose.other; // Default jika null
+    return DietPurpose.maintainHealth;
   }
   switch (purposeString) {
     case 'lose_weight':
@@ -35,17 +27,17 @@ DietPurpose getDietPurposeEnum(String? purposeString) {
     case 'gain_weight':
       return DietPurpose.gainWeight;
     case 'stay_healthy':
+    case 'other':
       return DietPurpose.maintainHealth;
     default:
-      return DietPurpose.other; // Default jika tidak cocok dengan string BE
+      return DietPurpose.maintainHealth;
   }
 }
 
-// BARU: Helper untuk mendapatkan enum dari string (dari Frontend UI, misal "Menurunkan Berat Badan")
-// Ini akan digunakan saat menyimpan data dari UI Flutter ke objek UserProfile
+// Helper untuk mendapatkan enum dari string (dari Frontend UI)
 DietPurpose getDietPurposeEnumFromFlutterString(String? flutterPurposeString) {
   if (flutterPurposeString == null) {
-    return DietPurpose.other; // Default jika null
+    return DietPurpose.maintainHealth;
   }
   switch (flutterPurposeString) {
     case 'Menurunkan Berat Badan':
@@ -53,13 +45,113 @@ DietPurpose getDietPurposeEnumFromFlutterString(String? flutterPurposeString) {
     case 'Menaikkan Berat Badan':
       return DietPurpose.gainWeight;
     case 'Menjaga Kesehatan':
-      return DietPurpose.maintainHealth;
     case 'Lainnya':
-      return DietPurpose.other;
+      return DietPurpose.maintainHealth;
     default:
-      return DietPurpose.other; // Fallback jika string tidak dikenal
+      return DietPurpose.maintainHealth;
   }
 }
+
+// Helper untuk mendapatkan string Backend dari enum DietPurpose
+String getDietPurposeBackendString(DietPurpose purpose) {
+  switch (purpose) {
+    case DietPurpose.loseWeight:
+      return 'lose_weight';
+    case DietPurpose.gainWeight:
+      return 'gain_weight';
+    case DietPurpose.maintainHealth:
+      return 'stay_healthy';
+  }
+}
+
+// ================================================================
+// Enum untuk Tingkat Aktivitas Fisik (Activity Level)
+enum ActivityLevel {
+  sedentary,
+  lightlyActive,
+  moderatelyActive,
+  veryActive,
+  superActive,
+}
+
+// Helper untuk mendapatkan string UI dari enum ActivityLevel
+String getActivityLevelString(ActivityLevel level) {
+  switch (level) {
+    case ActivityLevel.sedentary:
+      return 'Sangat Sedikit (tidak/sedikit olahraga)';
+    case ActivityLevel.lightlyActive:
+      return 'Ringan (olahraga 1-3 hari/minggu)';
+    case ActivityLevel.moderatelyActive:
+      return 'Sedang (olahraga 3-5 hari/minggu)';
+    case ActivityLevel.veryActive:
+      return 'Berat (olahraga 6-7 hari/minggu)';
+    case ActivityLevel.superActive:
+      return 'Sangat Berat (olahraga intens setiap hari/pekerjaan fisik)';
+  }
+}
+
+// Helper untuk mendapatkan enum ActivityLevel dari string UI
+ActivityLevel getActivityLevelEnumFromFlutterString(
+  String? flutterActivityString,
+) {
+  if (flutterActivityString == null) {
+    return ActivityLevel.sedentary;
+  }
+  switch (flutterActivityString) {
+    case 'Sangat Sedikit (tidak/sedikit olahraga)':
+      return ActivityLevel.sedentary;
+    case 'Ringan (olahraga 1-3 hari/minggu)':
+      return ActivityLevel.lightlyActive;
+    case 'Sedang (olahraga 3-5 hari/minggu)':
+      return ActivityLevel.moderatelyActive;
+    case 'Berat (olahraga 6-7 hari/minggu)':
+      return ActivityLevel.veryActive;
+    case 'Sangat Berat (olahraga intens setiap hari/pekerjaan fisik)':
+      return ActivityLevel.superActive;
+    default:
+      return ActivityLevel.sedentary;
+  }
+}
+
+// Helper untuk mendapatkan enum ActivityLevel dari string Backend
+ActivityLevel getActivityLevelEnumFromBackendString(
+  String? backendActivityString,
+) {
+  if (backendActivityString == null) {
+    return ActivityLevel.sedentary;
+  }
+  switch (backendActivityString) {
+    case 'sedentary':
+      return ActivityLevel.sedentary;
+    case 'lightly_active':
+      return ActivityLevel.lightlyActive;
+    case 'moderately_active':
+      return ActivityLevel.moderatelyActive;
+    case 'very_active':
+      return ActivityLevel.veryActive;
+    case 'super_active':
+      return ActivityLevel.superActive;
+    default:
+      return ActivityLevel.sedentary;
+  }
+}
+
+// Helper untuk mendapatkan string Backend dari enum ActivityLevel
+String getActivityLevelBackendString(ActivityLevel level) {
+  switch (level) {
+    case ActivityLevel.sedentary:
+      return 'sedentary';
+    case ActivityLevel.lightlyActive:
+      return 'lightly_active';
+    case ActivityLevel.moderatelyActive:
+      return 'moderately_active';
+    case ActivityLevel.veryActive:
+      return 'very_active';
+    case ActivityLevel.superActive:
+      return 'super_active';
+  }
+}
+// ================================================================
 
 class UserProfile {
   final String id;
@@ -68,9 +160,10 @@ class UserProfile {
   String gender;
   DateTime birthDate;
   double heightCm;
-  double currentWeightKg; // Tambahkan berat badan saat ini
+  double currentWeightKg;
   double targetWeightKg;
-  DietPurpose purpose; // Enum Flutter
+  DietPurpose purpose;
+  ActivityLevel activityLevel;
 
   UserProfile({
     String? id,
@@ -82,24 +175,24 @@ class UserProfile {
     required this.currentWeightKg,
     required this.targetWeightKg,
     required this.purpose,
+    this.activityLevel = ActivityLevel.sedentary,
   }) : id = id ?? UniqueKey().toString();
 
-  // BARU: Factory constructor untuk membuat instance UserProfile kosong/default
-  factory UserProfile.empty() {
+  factory UserProfile.initial() {
     return UserProfile(
-      id: UniqueKey().toString(), // ID unik untuk instance kosong
-      name: 'Guest',
-      email: 'guest@example.com',
-      gender: 'Laki-laki', // Default
-      birthDate: DateTime(2000, 1, 1), // Default
+      id: UniqueKey().toString(),
+      name: '',
+      email: '',
+      gender: 'Laki-laki',
+      birthDate: DateTime.now(),
       heightCm: 0.0,
       currentWeightKg: 0.0,
       targetWeightKg: 0.0,
-      purpose: DietPurpose.other, // Default
+      purpose: DietPurpose.maintainHealth,
+      activityLevel: ActivityLevel.sedentary,
     );
   }
 
-  // Metode copyWith untuk membuat instance UserProfile baru dengan beberapa properti yang diubah
   UserProfile copyWith({
     String? id,
     String? name,
@@ -110,6 +203,7 @@ class UserProfile {
     double? currentWeightKg,
     double? targetWeightKg,
     DietPurpose? purpose,
+    ActivityLevel? activityLevel,
   }) {
     return UserProfile(
       id: id ?? this.id,
@@ -121,29 +215,28 @@ class UserProfile {
       currentWeightKg: currentWeightKg ?? this.currentWeightKg,
       targetWeightKg: targetWeightKg ?? this.targetWeightKg,
       purpose: purpose ?? this.purpose,
+      activityLevel: activityLevel ?? this.activityLevel,
     );
   }
 
-  // Metode untuk konversi ke Map (untuk pengiriman ke BE)
-  // Perhatikan: ini mengirimkan nama kolom Flutter dan nilai string/enum Flutter
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
       'email': email,
       'gender':
-          gender, // Pastikan ini 'Laki-laki'/'Perempuan' atau diubah ke 'male'/'female' jika BE butuh itu
-      'birthDate': birthDate.toIso8601String(),
-      'heightCm': heightCm,
-      'currentWeightKg': currentWeightKg,
-      'targetWeightKg': targetWeightKg,
-      'purpose': getDietPurposeString(
-        purpose,
-      ), // Menggunakan helper untuk konversi ke string UI
+          gender == 'Laki-laki'
+              ? 'male'
+              : (gender == 'Perempuan' ? 'female' : 'other'),
+      'birth_date': birthDate.toIso8601String().split('T')[0],
+      'height': heightCm,
+      'weight': currentWeightKg,
+      'target_weight': targetWeightKg,
+      'goal': getDietPurposeBackendString(purpose),
+      'activity_level': getActivityLevelBackendString(activityLevel),
     };
   }
 
-  // Metode untuk konversi dari Map (untuk loading dari BE)
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     String flutterGender;
     if (json['gender'] == 'male') {
@@ -151,10 +244,13 @@ class UserProfile {
     } else if (json['gender'] == 'female') {
       flutterGender = 'Perempuan';
     } else {
-      flutterGender = 'Lainnya'; // Fallback atau default
+      flutterGender = 'Lainnya';
     }
 
     DietPurpose flutterPurpose = getDietPurposeEnum(json['goal'] as String?);
+    ActivityLevel fetchedActivityLevel = getActivityLevelEnumFromBackendString(
+      json['activity_level'] as String?,
+    );
 
     return UserProfile(
       id: json['id']?.toString() ?? UniqueKey().toString(),
@@ -169,23 +265,92 @@ class UserProfile {
       currentWeightKg: (json['weight'] as num?)?.toDouble() ?? 0.0,
       targetWeightKg: (json['target_weight'] as num?)?.toDouble() ?? 0.0,
       purpose: flutterPurpose,
+      activityLevel: fetchedActivityLevel,
     );
+  }
+
+  int get age {
+    final now = DateTime.now();
+    int age = now.year - birthDate.year;
+    if (now.month < birthDate.month ||
+        (now.month == birthDate.month && now.day < birthDate.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  double get bmr {
+    if (gender == 'Laki-laki') {
+      return (10 * currentWeightKg) + (6.25 * heightCm) - (5 * age) + 5;
+    } else if (gender == 'Perempuan') {
+      return (10 * currentWeightKg) + (6.25 * heightCm) - (5 * age) - 161;
+    }
+    return 0.0;
+  }
+
+  double get tdee {
+    double activityFactor;
+    switch (activityLevel) {
+      case ActivityLevel.sedentary:
+        activityFactor = 1.2;
+        break;
+      case ActivityLevel.lightlyActive:
+        activityFactor = 1.375;
+        break;
+      case ActivityLevel.moderatelyActive:
+        activityFactor = 1.55;
+        break;
+      case ActivityLevel.veryActive:
+        activityFactor = 1.725;
+        break;
+      case ActivityLevel.superActive:
+        activityFactor = 1.9;
+        break;
+    }
+    return bmr * activityFactor;
+  }
+
+  double get calculatedTargetCalories {
+    switch (purpose) {
+      case DietPurpose.loseWeight:
+        return tdee - 500;
+      case DietPurpose.gainWeight:
+        return tdee + 500;
+      case DietPurpose.maintainHealth:
+        return tdee;
+    }
+  }
+
+  double get calculatedTargetSugar {
+    return (calculatedTargetCalories * 0.10) / 4;
+  }
+
+  // PERBAIKAN: Menambahkan getter untuk warna avatar.
+  Color get avatarColor {
+    final List<Color> colors = [
+      Colors.blue.shade400,
+      Colors.green.shade400,
+      Colors.red.shade400,
+      Colors.orange.shade400,
+      Colors.purple.shade400,
+      Colors.teal.shade400,
+      Colors.indigo.shade400,
+      Colors.brown.shade400,
+    ];
+    if (name.isEmpty) return Colors.grey.shade400;
+
+    final int hash = name.codeUnitAt(0);
+    return colors[hash % colors.length];
   }
 }
 
 final ValueNotifier<UserProfile> currentUserProfile =
-    ValueNotifier<UserProfile>(
-      UserProfile(
-        name: 'Abdah Syakiroh',
-        email: 'abdah.syakiroh@example.com',
-        gender: 'Perempuan',
-        birthDate: DateTime(1999, 2, 20),
-        heightCm: 175.0,
-        currentWeightKg: 65.0,
-        targetWeightKg: 60.0,
-        purpose: DietPurpose.loseWeight,
-      ),
-    );
+    ValueNotifier<UserProfile>(UserProfile.initial());
+
+void resetCurrentUserProfile() {
+  currentUserProfile.value = UserProfile.initial();
+  debugPrint('Global user profile has been reset.');
+}
 
 void updateCurrentUserProfile(UserProfile updatedProfile) {
   currentUserProfile.value = updatedProfile;

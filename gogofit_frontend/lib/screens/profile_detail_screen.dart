@@ -6,11 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:gogofit_frontend/services/api_service.dart';
 import 'package:gogofit_frontend/screens/change_password_screen.dart';
 import 'package:gogofit_frontend/screens/auth/forgot_password_screen.dart';
-// import 'package:gogofit_frontend/screens/auth/login_screen.dart'; // Tidak perlu diimpor di sini jika ApiService sudah melakukan redirect
-import 'package:gogofit_frontend/exceptions/unauthorized_exception.dart'; // Import exception baru
-
-// Asumsi currentUserProfile sudah didefinisikan di user_profile_data.dart
-// ValueNotifier<UserProfile> currentUserProfile = ValueNotifier(UserProfile(...));
+import 'package:gogofit_frontend/exceptions/unauthorized_exception.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   const ProfileDetailScreen({super.key});
@@ -32,7 +28,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   final TextEditingController _currentWeightController =
       TextEditingController();
   final TextEditingController _targetWeightController = TextEditingController();
-
   final List<String> _genderOptions = ['Laki-laki', 'Perempuan'];
   final List<String> _purposeOptions = [
     'Menurunkan Berat Badan',
@@ -40,14 +35,29 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     'Menjaga Kesehatan',
     'Lainnya',
   ];
-
   late String _selectedGender = _genderOptions.first;
   late String _selectedPurpose = _purposeOptions.first;
   late DateTime _selectedBirthDate = DateTime(2000, 1, 1);
-
   bool _isEditing = false;
   bool _isLoading = true;
   final ApiService _apiService = ApiService();
+
+  // Fungsi helper untuk inisial tetap di sini karena spesifik untuk layar ini.
+  String _getInitials(String name) {
+    if (name.trim().isEmpty) return '?';
+    List<String> names = name.trim().split(' ');
+    String initials = '';
+    if (names.isNotEmpty) {
+      initials += names.first.isNotEmpty ? names.first[0] : '';
+    }
+    if (names.length > 1) {
+      initials += names.last.isNotEmpty ? names.last[0] : '';
+    }
+    return initials.toUpperCase();
+  }
+
+  // PERBAIKAN 1: Hapus fungsi _getAvatarColor dari sini.
+  // Logika warna sekarang ada di dalam UserProfile model.
 
   @override
   void initState() {
@@ -78,33 +88,21 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         currentUserProfile.value = fetchedProfile;
         _loadProfileData(fetchedProfile);
       } else {
-        // Jika fetchedProfile null, ini berarti AuthTokenManager.clearAuthToken()
-        // dan redirect ke login sudah terjadi di ApiService jika itu karena 401.
-        // Jika null karena alasan lain (misalnya data tidak ditemukan tapi bukan 401),
-        // maka Anda bisa tambahkan log atau dialog lain di sini.
         debugPrint(
           'Fetched profile is null. ApiService might have handled redirect.',
         );
-        // _showAlertDialog('Informasi', 'Gagal memuat profil. Silakan coba login kembali jika Anda belum di redirect.', null);
       }
     } on UnauthorizedException {
-      // Exception ini ditangkap oleh _sendRequest di ApiService dan redirect dilakukan.
-      // Tidak perlu melakukan apa-apa lagi di sini selain log atau menampilkan UI kosong.
       debugPrint(
         'ProfileDetailScreen: Caught UnauthorizedException. Redirect handled by ApiService.',
       );
       setState(() {
         _isLoading = false;
-        // Anda bisa menampilkan pesan khusus atau widget kosong di UI jika ingin
-        // sambil menunggu redirect terjadi.
       });
     } catch (e) {
       debugPrint('Error fetching profile data: $e');
-      // Tangani error lain, bukan 401.
       setState(() {
         _isLoading = false;
-        // Menampilkan pesan error di UI
-        // _errorMessage = 'Terjadi kesalahan saat memuat profil: $e';
       });
       _showAlertDialog('Error', 'Terjadi kesalahan saat memuat profil: $e');
     } finally {
@@ -116,7 +114,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   void _updateUI() {
     _loadProfileData(currentUserProfile.value);
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _loadProfileData(UserProfile profile) {
@@ -124,7 +124,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     _emailController.text = profile.email;
     _selectedBirthDate = profile.birthDate;
     _birthDateController.text = DateFormat(
-      'dd MMMMyyyy',
+      'dd MMMM yyyy',
       'id',
     ).format(profile.birthDate);
     _heightController.text = profile.heightCm.toStringAsFixed(1);
@@ -180,7 +180,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       setState(() {
         _selectedBirthDate = picked;
         _birthDateController.text = DateFormat(
-          'dd MMMMyyyy',
+          'dd MMMM yyyy',
           'id',
         ).format(picked);
       });
@@ -250,7 +250,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         );
       }
     } on UnauthorizedException {
-      // ApiService sudah handle redirect, tidak perlu apa-apa lagi di sini
       debugPrint(
         'ProfileDetailScreen: updateProfile caught UnauthorizedException. Redirect handled by ApiService.',
       );
@@ -322,11 +321,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               : ValueListenableBuilder<UserProfile>(
                 valueListenable: currentUserProfile,
                 builder: (context, profile, child) {
-                  // Cek apakah profil null (misalnya, jika terjadi UnauthorizedException)
-                  // Anda bisa menampilkan UI yang berbeda atau pesan loading/error yang lebih persisten
-                  // jika _fetchProfileData() mengembalikan null dan redirect belum terjadi
-                  if (profile == UserProfile.empty()) {
-                    // Asumsi ada UserProfile.empty() atau semacamnya
+                  if (profile.name.isEmpty) {
                     return const Center(
                       child: Text(
                         'Profil tidak tersedia. Silakan login kembali.',
@@ -345,9 +340,16 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 60,
-                                backgroundColor: lightBlueCardBackground,
-                                backgroundImage: const AssetImage(
-                                  'assets/images/placeholder_profile.png',
+                                // PERBAIKAN 2: Panggil getter dari model.
+                                backgroundColor: profile.avatarColor,
+                                child: Text(
+                                  _getInitials(profile.name),
+                                  style: const TextStyle(
+                                    fontSize: 48,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Poppins',
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -372,7 +374,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                             ],
                           ),
                         ),
-
+                        // ... (sisa UI tetap sama)
                         _buildProfileInputField(
                           label: 'Nama Lengkap',
                           controller: _nameController,
@@ -398,19 +400,17 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         _buildProfileInputField(
                           label: 'Tanggal Lahir',
                           controller: _birthDateController,
-                          readOnly:
-                              true, // Selalu read-only, pilih dengan DatePicker
+                          readOnly: true,
                           onTap:
                               _isEditing
                                   ? () => _selectBirthDate(context)
                                   : null,
-                          suffixIcon: Icons.calendar_today,
                         ),
                         _buildProfileInputField(
                           label: 'Tinggi Badan (cm)',
                           controller: _heightController,
                           readOnly: !_isEditing,
-                          keyboardType: TextInputType.numberWithOptions(
+                          keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
                           inputFormatters: [
@@ -424,7 +424,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                           label: 'Berat Badan Saat Ini (kg)',
                           controller: _currentWeightController,
                           readOnly: !_isEditing,
-                          keyboardType: TextInputType.numberWithOptions(
+                          keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
                           inputFormatters: [
@@ -438,7 +438,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                           label: 'Target Berat Badan (kg)',
                           controller: _targetWeightController,
                           readOnly: !_isEditing,
-                          keyboardType: TextInputType.numberWithOptions(
+                          keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
                           inputFormatters: [
@@ -460,8 +460,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                           },
                         ),
                         const SizedBox(height: 30),
-
-                        // Tombol Aksi
                         if (_isEditing)
                           Column(
                             children: [
@@ -493,7 +491,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                                 width: double.infinity,
                                 height: 55,
                                 child: OutlinedButton(
-                                  onPressed: _toggleEditMode, // Batalkan edit
+                                  onPressed: _toggleEditMode,
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: accentBlueColor,
                                     side: BorderSide(
@@ -522,7 +520,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                             width: double.infinity,
                             height: 55,
                             child: ElevatedButton(
-                              onPressed: _toggleEditMode, // Masuk mode edit
+                              onPressed: _toggleEditMode,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: accentBlueColor,
                                 shape: RoundedRectangleBorder(
@@ -542,13 +540,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                             ),
                           ),
                         const SizedBox(height: 20),
-                        // Tombol Ubah Kata Sandi
                         SizedBox(
                           width: double.infinity,
                           height: 55,
                           child: ElevatedButton(
                             onPressed: () {
-                              debugPrint('Navigasi ke halaman Ubah Kata Sandi');
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -574,16 +570,12 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                             child: const Text('Ubah Kata Sandi'),
                           ),
                         ),
-                        // BARU: Tombol Lupa Kata Sandi
-                        const SizedBox(
-                          height: 10,
-                        ), // Memberi jarak antara tombol
+                        const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,
                           height: 55,
                           child: ElevatedButton(
                             onPressed: () {
-                              debugPrint('Navigasi ke halaman Lupa Kata Sandi');
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -593,8 +585,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                               );
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  lightBlueCardBackground, // Warna yang sama dengan "Ubah Kata Sandi"
+                              backgroundColor: lightBlueCardBackground,
                               foregroundColor: darkerBlue,
                               padding: const EdgeInsets.symmetric(vertical: 15),
                               shape: RoundedRectangleBorder(
@@ -619,7 +610,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     );
   }
 
-  // Helper Widget untuk Input Field
   Widget _buildProfileInputField({
     required String label,
     required TextEditingController controller,
@@ -627,8 +617,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     TextInputType keyboardType = TextInputType.text,
     List<TextInputFormatter>? inputFormatters,
     VoidCallback? onTap,
-    IconData? suffixIcon,
-    String? hintText, // Tambahkan hintText
+    String? hintText,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -652,7 +641,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             inputFormatters: inputFormatters,
             onTap: onTap,
             decoration: InputDecoration(
-              hintText: hintText, // Gunakan hintText
+              hintText: hintText,
               hintStyle: TextStyle(
                 color: Colors.grey.shade500,
                 fontFamily: 'Poppins',
@@ -678,7 +667,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     );
   }
 
-  // Helper Widget untuk Dropdown Field
   Widget _buildDropdownField({
     required String label,
     required String value,
@@ -721,10 +709,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                   fontSize: 16,
                   fontFamily: 'Poppins',
                 ),
-                onChanged:
-                    readOnly
-                        ? null
-                        : onChanged, // Hanya aktif jika tidak readOnly
+                onChanged: readOnly ? null : onChanged,
                 items:
                     options.map<DropdownMenuItem<String>>((String item) {
                       return DropdownMenuItem<String>(

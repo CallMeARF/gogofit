@@ -1,11 +1,12 @@
 // lib/screens/onboarding/birth_date_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Untuk format tanggal
-import 'package:gogofit_frontend/screens/onboarding/height_screen.dart'; // Import halaman tinggi badan
+import 'package:intl/intl.dart';
+import 'package:gogofit_frontend/screens/onboarding/height_screen.dart';
+// PERBAIKAN 1: Import model untuk mengakses currentUserProfile
+import 'package:gogofit_frontend/models/user_profile_data.dart';
 
 class BirthDateScreen extends StatefulWidget {
-  // BARU: Menerima data registrasi awal dari GenderScreen
   final Map<String, dynamic> registrationData;
 
   const BirthDateScreen({super.key, required this.registrationData});
@@ -20,18 +21,25 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
   @override
   void initState() {
     super.initState();
-    // Pastikan locale default diatur ke Indonesia untuk DateFormat
-    // Ini idealnya diatur sekali di main.dart, tapi kita bisa pastikan di sini juga.
-    // Jika sudah diatur di main.dart, baris ini bisa diabaikan.
     Intl.defaultLocale = 'id';
 
-    // Inisialisasi tanggal default dari data jika ada, jika tidak, gunakan tanggal default mockup
+    DateTime initialDate;
     if (widget.registrationData.containsKey('birthDate') &&
         widget.registrationData['birthDate'] != null) {
-      _selectedDate = widget.registrationData['birthDate'];
+      initialDate = widget.registrationData['birthDate'];
     } else {
-      _selectedDate = DateTime(1999, 2, 20); // Default sesuai mockup
+      initialDate = DateTime(1999, 2, 20); // Default sesuai mockup
     }
+
+    _selectedDate = initialDate;
+
+    // PERBAIKAN 2: Langsung update state global agar sinkron dengan UI
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      birthDate: _selectedDate,
+    );
+    debugPrint(
+      'BirthDateScreen initState: currentUserProfile updated with date: $_selectedDate',
+    );
   }
 
   void _navigateToNextScreen() {
@@ -42,16 +50,25 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
       return;
     }
 
-    // Akumulasikan data yang sudah ada dan tambahkan data baru dari layar ini
+    // PERBAIKAN 3: Pastikan state global di-update sebelum navigasi
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      birthDate: _selectedDate,
+    );
+
     final updatedRegistrationData = Map<String, dynamic>.from(
       widget.registrationData,
     );
-    updatedRegistrationData['birthDate'] =
-        _selectedDate; // Simpan tanggal lahir yang dipilih
+    updatedRegistrationData['birthDate'] = _selectedDate;
 
+    // Cetak kedua state untuk verifikasi
     debugPrint(
-      'Tanggal lahir dipilih: $_selectedDate, melanjutkan ke Height Screen dengan data: $updatedRegistrationData',
+      'Tanggal lahir dipilih: $_selectedDate, melanjutkan ke Height Screen.',
     );
+    debugPrint('  - RegistrationData: $updatedRegistrationData');
+    debugPrint(
+      '  - CurrentProfile State: ${currentUserProfile.value.toJson()}',
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -60,28 +77,33 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
       ),
     );
 
-    // Navigasi ke halaman HeightScreen dengan meneruskan data yang sudah terakumulasi
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => HeightScreen(
-              registrationData: updatedRegistrationData, // Teruskan data
-            ),
+            (context) =>
+                HeightScreen(registrationData: updatedRegistrationData),
       ),
     );
   }
 
-  // Fungsi untuk 'Skip'
   void _skipOnboarding() {
+    // Saat skip, kita set tanggal lahir default di state global
+    // agar perhitungan umur tidak error.
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      birthDate: DateTime(2000, 1, 1), // Default aman
+    );
+
     final updatedRegistrationData = Map<String, dynamic>.from(
       widget.registrationData,
     );
-    // Jika diskip, pastikan birthDate menjadi null di data
     updatedRegistrationData['birthDate'] = null;
 
+    debugPrint('Skip Onboarding dari Birth Date Screen menuju Height Screen.');
+    debugPrint('  - RegistrationData: $updatedRegistrationData');
     debugPrint(
-      'Skip Onboarding dari Birth Date Screen menuju Height Screen dengan data: $updatedRegistrationData',
+      '  - CurrentProfile State: ${currentUserProfile.value.toJson()}',
     );
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
@@ -89,14 +111,12 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
         ),
       ),
     );
-    // Navigasi ke halaman HeightScreen saat tombol 'Skip' ditekan
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => HeightScreen(
-              registrationData:
-                  updatedRegistrationData, // Teruskan data yang sudah terakumulasi
-            ),
+            (context) =>
+                HeightScreen(registrationData: updatedRegistrationData),
       ),
     );
   }
@@ -110,14 +130,12 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
       builder: (BuildContext context, Widget? child) {
         return Theme(
           data: ThemeData.light().copyWith(
-            primaryColor: const Color(0xFF015C91), // Normal Blue
+            primaryColor: const Color(0xFF015C91),
             colorScheme: const ColorScheme.light(
-              primary: Color(
-                0xFF015C91,
-              ), // Normal Blue (warna header, bulan terpilih)
-              onPrimary: Colors.white, // Teks pada header DatePicker
-              surface: Colors.white, // Background utama DatePicker
-              onSurface: Color(0xFF002033), // Teks tanggal, bulan, tahun
+              primary: Color(0xFF015C91),
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Color(0xFF002033),
             ),
             textTheme: const TextTheme(
               bodyLarge: TextStyle(fontFamily: 'Poppins'),
@@ -144,16 +162,14 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Format tanggal untuk tampilan utama (contoh: "20 Februari 1999")
-    // Menggunakan locale 'id' untuk format Indonesia
+    // Kode build tetap sama, tidak ada perubahan di sini
     String displayDate =
         _selectedDate != null
             ? DateFormat('dd MMMM yyyy', 'id').format(_selectedDate!)
-            : '20 Februari 1999'; // Default jika belum ada tanggal terpilih
+            : '20 Februari 1999';
 
-    // Ambil hanya hari dalam format 2 digit
     String dayOnly =
-        _selectedDate != null ? DateFormat('dd').format(_selectedDate!) : '23';
+        _selectedDate != null ? DateFormat('dd').format(_selectedDate!) : '20';
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -164,14 +180,11 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
           padding: const EdgeInsets.only(left: 10.0, top: 5.0, bottom: 5.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.grey.shade200, // Warna abu-abu background icon back
+              color: Colors.grey.shade200,
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios,
-                color: Colors.black,
-              ), // Warna ikon back hitam
+              icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -183,21 +196,18 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
             padding: const EdgeInsets.only(right: 10.0, top: 5.0, bottom: 5.0),
             child: Container(
               decoration: BoxDecoration(
-                color:
-                    Colors
-                        .grey
-                        .shade200, // Warna abu-abu background tombol Skip
+                color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: TextButton(
-                onPressed: _skipOnboarding, // Panggil fungsi skip
+                onPressed: _skipOnboarding,
                 child: const Text(
                   'Skip',
                   style: TextStyle(
-                    color: Colors.black, // Warna teks Skip hitam
+                    color: Colors.black,
                     fontSize: 16,
-                    fontFamily: 'Poppins', // Font Poppins
-                    fontWeight: FontWeight.w500, // SemiBold atau Medium
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -214,19 +224,17 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
             RichText(
               textAlign: TextAlign.center,
               text: TextSpan(
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF002033), // Darker Blue
-                  fontFamily: 'Poppins', // Font Poppins
+                  color: Color(0xFF002033),
+                  fontFamily: 'Poppins',
                 ),
                 children: <TextSpan>[
                   const TextSpan(text: 'Masukan '),
                   TextSpan(
                     text: 'Tanggal Lahir',
-                    style: TextStyle(
-                      color: Theme.of(context).primaryColor,
-                    ), // Normal Blue
+                    style: TextStyle(color: Theme.of(context).primaryColor),
                   ),
                   const TextSpan(text: ' anda?'),
                 ],
@@ -238,34 +246,30 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600, // Warna abu-abu yang lebih sesuai
-                fontFamily: 'Poppins', // Font Poppins
+                color: Colors.grey.shade600,
+                fontFamily: 'Poppins',
               ),
             ),
             const SizedBox(height: 50),
-            // Kotak besar untuk menampilkan hari
             Container(
               width: double.infinity,
               height: 120,
               decoration: BoxDecoration(
-                color: const Color(0xFFB0CCDD), // Light :active Blue
-                borderRadius: BorderRadius.circular(
-                  8,
-                ), // Mengubah ke 8px agar lebih kotak
+                color: const Color(0xFFB0CCDD),
+                borderRadius: BorderRadius.circular(8),
               ),
               alignment: Alignment.center,
               child: Text(
-                dayOnly, // Menampilkan hanya hari
+                dayOnly,
                 style: const TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF002033), // Darker Blue
-                  fontFamily: 'Poppins', // Font Poppins
+                  color: Color(0xFF002033),
+                  fontFamily: 'Poppins',
                 ),
               ),
             ),
             const SizedBox(height: 20),
-            // Container untuk menampilkan tanggal lengkap dan icon kalender
             GestureDetector(
               onTap: () => _selectDate(context),
               child: Container(
@@ -275,21 +279,19 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
                   vertical: 18,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF015C91), // Normal Blue
-                  borderRadius: BorderRadius.circular(
-                    8,
-                  ), // Mengubah ke 8px agar lebih kotak
+                  color: const Color(0xFF015C91),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      displayDate, // Menampilkan tanggal dengan format Indonesia
+                      displayDate,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        fontFamily: 'Poppins', // Font Poppins
+                        fontFamily: 'Poppins',
                       ),
                     ),
                     const Icon(Icons.calendar_today, color: Colors.white),
@@ -297,38 +299,30 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
                 ),
               ),
             ),
-            const Spacer(), // Mendorong semua konten di atas ke atas layar
-            const SizedBox(
-              height: 40,
-            ), // Jarak antara konten atas dan tombol Next
-            // Tombol "Next"
+            const Spacer(),
+            const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed:
-                    _selectedDate != null
-                        ? _navigateToNextScreen // Panggil fungsi navigasi
-                        : null, // Tombol dinonaktifkan jika belum ada tanggal terpilih
+                onPressed: _selectedDate != null ? _navigateToNextScreen : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF01456D), // Dark Blue
+                  backgroundColor: const Color(0xFF01456D),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8), // Sudut tombol 8px
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 5,
                   textStyle: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    fontFamily: 'Poppins', // Font Poppins
+                    fontFamily: 'Poppins',
                   ),
                 ),
                 child: const Text('Next'),
               ),
             ),
-            const SizedBox(
-              height: 200, // Memberi sedikit padding dari bawah layar
-            ),
+            const SizedBox(height: 40),
           ],
         ),
       ),

@@ -9,9 +9,9 @@ import 'package:gogofit_frontend/models/notification_data.dart';
 import 'package:gogofit_frontend/screens/profile_detail_screen.dart';
 import 'package:gogofit_frontend/models/user_profile_data.dart';
 import 'package:gogofit_frontend/services/api_service.dart';
-import 'package:gogofit_frontend/services/auth_token_manager.dart'; // BARU: Import AuthTokenManager
-import 'package:gogofit_frontend/exceptions/unauthorized_exception.dart'; // BARU: Import UnauthorizedException
-import 'package:gogofit_frontend/screens/auth/login_screen.dart'; // Import LoginScreen untuk navigasi setelah logout
+import 'package:gogofit_frontend/services/auth_token_manager.dart';
+import 'package:gogofit_frontend/exceptions/unauthorized_exception.dart';
+import 'package:gogofit_frontend/screens/auth/login_screen.dart';
 
 class MoreOptionsScreen extends StatefulWidget {
   const MoreOptionsScreen({super.key});
@@ -21,18 +21,29 @@ class MoreOptionsScreen extends StatefulWidget {
 }
 
 class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
+  // PERBAIKAN: Kembalikan definisi warna yang hilang.
   final Color primaryBlueNormal = const Color(0xFF015c91);
   final Color darkerBlue = const Color(0xFF002033);
   final Color lightBlueCardBackground = const Color(0xFFD9E7EF);
   final Color searchBarIconColor = const Color(0xFF6DCFF6);
-
   final Color white70Opacity = const Color.fromARGB(179, 255, 255, 255);
   final Color black25Opacity = const Color.fromARGB(25, 0, 0, 0);
-  final Color black51Opacity = const Color.fromARGB(51, 0, 0, 0);
   final Color darkerBlue70Opacity = const Color.fromARGB(179, 0, 32, 51);
   final Color alertRedColor = const Color(0xFFEF5350);
-
   final ApiService _apiService = ApiService();
+
+  String _getInitials(String name) {
+    if (name.trim().isEmpty) return '?';
+    List<String> names = name.trim().split(' ');
+    String initials = '';
+    if (names.isNotEmpty) {
+      initials += names.first.isNotEmpty ? names.first[0] : '';
+    }
+    if (names.length > 1) {
+      initials += names.last.isNotEmpty ? names.last[0] : '';
+    }
+    return initials.toUpperCase();
+  }
 
   @override
   void initState() {
@@ -88,21 +99,18 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
     try {
       final response = await _apiService.logout();
 
-      if (!mounted) return; // Check mounted after await
+      if (!mounted) return;
 
       if (response['success']) {
-        // AuthTokenManager.clearAuthToken() sudah dipanggil di dalam _apiService.logout() jika berhasil.
         debugPrint('Logout berhasil. Mengarahkan ke LoginScreen.');
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
           (Route<dynamic> route) => false,
         );
       } else {
-        // Jika logout gagal di sisi server (tapi bukan 401, karena 401 sudah ditangani ApiService)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(response['message'] ?? 'Logout gagal.')),
         );
-        // Tetap arahkan ke login jika logout gagal, karena mungkin ada masalah sesi parsial
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -110,14 +118,11 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
         );
       }
     } on UnauthorizedException catch (e) {
-      // Ini berarti ApiService sudah mendeteksi token tidak valid dan memicu redirect.
       if (!mounted) return;
       debugPrint(
         'Logout Error (UnauthorizedException): ${e.message}. Redirect handled by ApiService.',
       );
-      // Tidak perlu menampilkan SnackBar atau navigasi lagi di sini karena sudah di-handle oleh ApiService.
     } catch (e) {
-      // Tangani error lain, seperti masalah koneksi
       if (!mounted) return;
       debugPrint('Logout Error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -127,9 +132,8 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
           ),
         ),
       );
-      // Sebagai fallback, tetap arahkan ke login jika ada error yang tidak terduga
       if (!mounted) return;
-      AuthTokenManager.clearAuthToken(); // Pastikan token dihapus sebagai langkah aman
+      AuthTokenManager.clearAuthToken();
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
         (Route<dynamic> route) => false,
@@ -149,9 +153,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
         leading: IconButton(
           icon: Icon(Icons.person, color: primaryBlueNormal, size: 28),
           onPressed: () {
-            debugPrint(
-              'Navigasi ke halaman Profil (dari ikon person di MoreOptions AppBar)',
-            );
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -227,7 +228,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Bagian Foto Profil dan Nama Pengguna
             Center(
               child: ValueListenableBuilder<UserProfile>(
                 valueListenable: currentUserProfile,
@@ -236,9 +236,15 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
                     children: [
                       CircleAvatar(
                         radius: 60,
-                        backgroundColor: lightBlueCardBackground,
-                        backgroundImage: const AssetImage(
-                          'assets/images/placeholder_profile.png',
+                        backgroundColor: profile.avatarColor,
+                        child: Text(
+                          _getInitials(profile.name),
+                          style: const TextStyle(
+                            fontSize: 48,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Poppins',
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -265,14 +271,11 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
                 },
               ),
             ),
-
-            // Daftar Menu
             _buildMenuItem(
               context,
               icon: Icons.person,
               label: 'Profil Saya',
               onTap: () {
-                debugPrint('Navigasi ke Halaman Profil Saya');
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -290,7 +293,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
                   icon: Icons.notifications,
                   label: 'Pemberitahuan',
                   onTap: () {
-                    debugPrint('Navigasi ke Halaman Pemberitahuan');
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -335,7 +337,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
               },
             ),
             const SizedBox(height: 24),
-            // Tombol Logout
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -429,8 +430,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
                         builder: (context) => const DailyLogScreen(),
                       ),
                     );
-                  } else if (index == 2) {
-                    debugPrint('Already on More Options Screen');
                   }
                 },
               ),
@@ -441,9 +440,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
               right: 40,
               child: GestureDetector(
                 onTap: () {
-                  debugPrint(
-                    'Search bar text tapped! Navigating to SelectMealScreen.',
-                  );
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -459,7 +455,8 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
                     borderRadius: BorderRadius.circular(30.0),
                     boxShadow: [
                       BoxShadow(
-                        color: black25Opacity,
+                        color:
+                            black25Opacity, // Variabel ini sekarang terdefinisi
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
@@ -497,9 +494,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
                           size: 30,
                         ),
                         onPressed: () {
-                          debugPrint(
-                            'Camera icon tapped! Navigating to SelectMealScreen for search.',
-                          );
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -521,7 +515,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
     );
   }
 
-  // Widget helper untuk item menu
   Widget _buildMenuItem(
     BuildContext context, {
     required IconData icon,
@@ -541,7 +534,6 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              // Icon dan Badge (jika ada unreadCount > 0)
               Stack(
                 children: [
                   Icon(icon, color: primaryBlueNormal, size: 28),
@@ -588,7 +580,7 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
               ),
               Icon(
                 Icons.arrow_forward_ios,
-                color: darkerBlue70Opacity,
+                color: darkerBlue70Opacity, // Variabel ini sekarang terdefinisi
                 size: 18,
               ),
             ],

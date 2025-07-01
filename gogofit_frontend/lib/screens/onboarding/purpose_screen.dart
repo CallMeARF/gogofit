@@ -1,7 +1,9 @@
+// lib/screens/onboarding/purpose_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:gogofit_frontend/screens/dashboard_screen.dart'; // Import DashboardScreen
-import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
-import 'package:gogofit_frontend/models/user_profile_data.dart'; // BARU: Import UserProfile model (Diperlukan!)
+import 'package:gogofit_frontend/screens/dashboard_screen.dart';
+import 'package:gogofit_frontend/services/api_service.dart';
+import 'package:gogofit_frontend/models/user_profile_data.dart';
 
 class PurposeScreen extends StatefulWidget {
   final Map<String, dynamic> registrationData;
@@ -13,18 +15,41 @@ class PurposeScreen extends StatefulWidget {
 }
 
 class _PurposeScreenState extends State<PurposeScreen> {
-  String? _selectedPurpose; // Menyimpan tujuan yang dipilih
-  final ApiService _apiService = ApiService(); // Inisialisasi ApiService
-  bool _isRegistering = false; // Untuk mengelola state loading
+  final List<String> _purposeOptions = [
+    'Menurunkan Berat Badan',
+    'Menaikkan Berat Badan',
+    'Menjaga Kesehatan',
+  ];
+
+  String? _selectedPurpose;
+  final ApiService _apiService = ApiService();
+  bool _isRegistering = false;
 
   @override
   void initState() {
     super.initState();
-    // Inisialisasi tujuan jika sudah ada di data (misal dari edit profil atau skip)
+
+    String initialPurpose = getDietPurposeString(
+      currentUserProfile.value.purpose,
+    );
     if (widget.registrationData.containsKey('purpose') &&
         widget.registrationData['purpose'] != null) {
-      _selectedPurpose = widget.registrationData['purpose'];
+      initialPurpose = widget.registrationData['purpose'];
     }
+
+    if (_purposeOptions.contains(initialPurpose)) {
+      _selectedPurpose = initialPurpose;
+    }
+
+    // PERBAIKAN 1: Langsung update state global agar sinkron dengan UI.
+    if (_selectedPurpose != null) {
+      currentUserProfile.value = currentUserProfile.value.copyWith(
+        purpose: getDietPurposeEnumFromFlutterString(_selectedPurpose!),
+      );
+    }
+    debugPrint(
+      'PurposeScreen initState: currentUserProfile updated with purpose: ${currentUserProfile.value.purpose}',
+    );
   }
 
   Future<void> _completeRegistration({bool skipPurpose = false}) async {
@@ -36,85 +61,50 @@ class _PurposeScreenState extends State<PurposeScreen> {
     }
 
     setState(() {
-      _isRegistering = true; // Set loading state
+      _isRegistering = true;
     });
 
-    final Map<String, dynamic> finalRegistrationData =
-        Map<String, dynamic>.from(widget.registrationData);
-    if (skipPurpose) {
-      finalRegistrationData['purpose'] = null; // Set null jika diskip
-    } else {
-      finalRegistrationData['purpose'] =
-          _selectedPurpose; // Simpan tujuan yang dipilih
-    }
+    // PERBAIKAN 2: Lakukan `copyWith` terakhir untuk `purpose` sebelum mengirim data.
+    final DietPurpose finalPurpose =
+        skipPurpose || _selectedPurpose == null
+            ? DietPurpose.maintainHealth
+            : getDietPurposeEnumFromFlutterString(_selectedPurpose!);
 
-    debugPrint('Final Registration Data: $finalRegistrationData');
+    currentUserProfile.value = currentUserProfile.value.copyWith(
+      purpose: finalPurpose,
+    );
+
+    // Sekarang, semua data di currentUserProfile sudah final dan siap dikirim.
+    final UserProfile finalProfile = currentUserProfile.value;
+
+    debugPrint('Final Registration Data to API:');
+    debugPrint('  - Profile State: ${finalProfile.toJson()}');
+    debugPrint('  - Password included from registrationData.');
 
     try {
-      String? bePurpose;
-      if (finalRegistrationData['purpose'] != null) {
-        if (finalRegistrationData['purpose'] == 'Menurunkan Berat Badan') {
-          bePurpose = 'lose_weight';
-        } else if (finalRegistrationData['purpose'] ==
-            'Menaikkan Berat Badan') {
-          bePurpose = 'gain_weight';
-        } else if (finalRegistrationData['purpose'] == 'Menjaga Kesehatan') {
-          bePurpose = 'stay_healthy';
-        }
-      }
-
-      String? beGender;
-      if (finalRegistrationData['gender'] != null) {
-        if (finalRegistrationData['gender'] == 'Laki-laki') {
-          beGender = 'male';
-        } else if (finalRegistrationData['gender'] == 'Perempuan') {
-          beGender = 'female';
-        }
-      }
-
       final response = await _apiService.register(
-        name: finalRegistrationData['name']!,
-        email: finalRegistrationData['email']!,
-        password: finalRegistrationData['password']!,
-        passwordConfirmation: finalRegistrationData['passwordConfirmation']!,
-        gender: beGender, // Gunakan gender yang sudah dipetakan
-        birthDate: finalRegistrationData['birthDate'],
-        heightCm: finalRegistrationData['heightCm'],
-        currentWeightKg: finalRegistrationData['currentWeightKg'],
-        targetWeightKg: finalRegistrationData['targetWeightKg'],
-        purpose: bePurpose, // Gunakan purpose yang sudah dipetakan
+        name: finalProfile.name,
+        email: finalProfile.email,
+        password: widget.registrationData['password'] as String,
+        passwordConfirmation:
+            widget.registrationData['passwordConfirmation'] as String,
+        gender: finalProfile.gender == 'Laki-laki' ? 'male' : 'female',
+        birthDate: finalProfile.birthDate,
+        heightCm: finalProfile.heightCm,
+        currentWeightKg: finalProfile.currentWeightKg,
+        targetWeightKg: finalProfile.targetWeightKg,
+        purpose: getDietPurposeBackendString(finalProfile.purpose),
+        activityLevel: getActivityLevelBackendString(
+          finalProfile.activityLevel,
+        ),
       );
 
-      // Pastikan context masih mounted sebelum melakukan navigasi atau show dialog
       if (!mounted) return;
 
-      setState(() {
-        _isRegistering = false; // Selesai loading
-      });
-
       if (response['success']) {
-        // BARU: Setelah registrasi berhasil, ambil data profil terbaru
-        // Pastikan UserProfile dan currentUserProfile didefinisikan atau diimpor dengan benar
-        // Jika belum ada, Anda mungkin perlu dummy atau implementasi yang sebenarnya.
-        // Contoh dummy jika belum ada:
-        // final currentUserProfile = ValueNotifier<UserProfile>(UserProfile(name: '', email: '', gender: '', birthDate: DateTime.now(), heightCm: 0, currentWeightKg: 0, targetWeightKg: 0));
-        // UserProfile getDietPurposeEnum(String purpose) => UserProfile(name: '', email: '', gender: '', birthDate: DateTime.now(), heightCm: 0, currentWeightKg: 0, targetWeightKg: 0);
-
         final UserProfile? fetchedProfile = await _apiService.getUserProfile();
-
-        // FIX: Cek mounted lagi setelah fetching profil
-        if (!mounted) return;
-
-        if (fetchedProfile != null) {
-          currentUserProfile.value =
-              fetchedProfile; // Perbarui ValueNotifier global
-          debugPrint(
-            'User profile updated after successful registration: ${fetchedProfile.name}',
-          );
-        } else {
-          debugPrint(
-            'Failed to fetch user profile immediately after registration.',
-          );
+        if (mounted && fetchedProfile != null) {
+          currentUserProfile.value = fetchedProfile;
         }
 
         _showAlertDialog(
@@ -122,7 +112,6 @@ class _PurposeScreenState extends State<PurposeScreen> {
           response['message'] ?? 'Registrasi berhasil!',
           () {
             if (!mounted) return;
-            // Registrasi sukses, langsung ke Dashboard
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (context) => const DashboardScreen()),
               (Route<dynamic> route) => false,
@@ -130,18 +119,22 @@ class _PurposeScreenState extends State<PurposeScreen> {
           },
         );
       } else {
+        setState(() => _isRegistering = false);
         _showAlertDialog(
           'Error',
           response['message'] ?? 'Registrasi gagal. Mohon coba lagi.',
         );
       }
     } catch (e) {
-      if (!mounted) return; // Check mounted before setState in catch block too
+      if (!mounted) return;
       setState(() {
-        _isRegistering = false; // Selesai loading
+        _isRegistering = false;
       });
       debugPrint('Registration Error: $e');
-      _showAlertDialog('Error', 'Terjadi kesalahan saat registrasi: $e');
+      _showAlertDialog(
+        'Error',
+        'Terjadi kesalahan saat registrasi: ${e.toString().contains('Exception:') ? e.toString().split('Exception:').last.trim() : 'Unknown error'}',
+      );
     }
   }
 
@@ -180,6 +173,7 @@ class _PurposeScreenState extends State<PurposeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Kode build tetap sama
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -189,14 +183,11 @@ class _PurposeScreenState extends State<PurposeScreen> {
           padding: const EdgeInsets.only(left: 10.0, top: 5.0, bottom: 5.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.grey.shade200, // Warna abu-abu background icon back
+              color: Colors.grey.shade200,
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios,
-                color: Colors.black,
-              ), // Warna ikon back hitam
+              icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -208,24 +199,18 @@ class _PurposeScreenState extends State<PurposeScreen> {
             padding: const EdgeInsets.only(right: 10.0, top: 5.0, bottom: 5.0),
             child: Container(
               decoration: BoxDecoration(
-                color:
-                    Colors
-                        .grey
-                        .shade200, // Warna abu-abu background tombol Skip
+                color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: TextButton(
-                onPressed:
-                    () => _completeRegistration(
-                      skipPurpose: true,
-                    ), // Panggil completeRegistration dengan skip
+                onPressed: () => _completeRegistration(skipPurpose: true),
                 child: const Text(
                   'Skip',
                   style: TextStyle(
-                    color: Colors.black, // Warna teks Skip hitam
+                    color: Colors.black,
                     fontSize: 16,
-                    fontFamily: 'Poppins', // Font Poppins
-                    fontWeight: FontWeight.w500, // SemiBold atau Medium
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -234,7 +219,7 @@ class _PurposeScreenState extends State<PurposeScreen> {
         ],
       ),
       body:
-          _isRegistering // Tampilkan loading indicator jika sedang memproses registrasi
+          _isRegistering
               ? const Center(
                 child: CircularProgressIndicator(color: Colors.blue),
               )
@@ -247,11 +232,11 @@ class _PurposeScreenState extends State<PurposeScreen> {
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF002033), // Darker Blue
-                          fontFamily: 'Poppins', // Font Poppins
+                          color: Color(0xFF002033),
+                          fontFamily: 'Poppins',
                         ),
                         children: <TextSpan>[
                           const TextSpan(text: 'Apa '),
@@ -259,7 +244,7 @@ class _PurposeScreenState extends State<PurposeScreen> {
                             text: 'tujuan',
                             style: TextStyle(
                               color: Theme.of(context).primaryColor,
-                            ), // Normal Blue
+                            ),
                           ),
                           const TextSpan(text: ' anda?'),
                         ],
@@ -271,104 +256,66 @@ class _PurposeScreenState extends State<PurposeScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
-                        color:
-                            Colors
-                                .grey
-                                .shade600, // Warna abu-abu yang lebih sesuai
-                        fontFamily: 'Poppins', // Font Poppins
+                        color: Colors.grey.shade600,
+                        fontFamily: 'Poppins',
                       ),
                     ),
                     const SizedBox(height: 50),
-                    // Pilihan "Menurunkan Berat Badan"
-                    _buildPurposeOption(
-                      context,
-                      'Menurunkan Berat Badan',
-                      'assets/images/purpose_lose_weight.png', // Nama file gambar untuk menurunkan berat badan
-                      const Color(
-                        0xFF01456D,
-                      ), // Dark Blue untuk border terpilih
-                      const Color(
-                        0xFFE6EFF4,
-                      ), // Light Blue untuk background tidak terpilih
-                    ),
-                    const SizedBox(height: 20),
-                    // Pilihan "Menaikkan Berat Badan"
-                    _buildPurposeOption(
-                      context,
-                      'Menaikkan Berat Badan',
-                      'assets/images/purpose_gain_weight.png', // Nama file gambar untuk menaikkan berat badan
-                      const Color(
-                        0xFF01456D,
-                      ), // Dark Blue untuk border terpilih
-                      const Color(
-                        0xFFE6EFF4,
-                      ), // Light Blue untuk background tidak terpilih
-                    ),
-                    const SizedBox(height: 20),
-                    // Pilihan "Menjaga Kesehatan" (perubahan dari "Stay healthy")
-                    _buildPurposeOption(
-                      context,
-                      'Menjaga Kesehatan', // Mengubah teks
-                      'assets/images/purpose_stay_healthy.png', // Nama file gambar untuk stay healthy
-                      const Color(
-                        0xFF01456D,
-                      ), // Dark Blue untuk border terpilih
-                      const Color(
-                        0xFFE6EFF4,
-                      ), // Light Blue untuk background tidak terpilih
-                    ),
-                    const Spacer(), // Mendorong semua konten di atas ke atas layar
-                    const SizedBox(
-                      height: 40,
-                    ), // Jarak antara konten atas dan tombol Next
+                    ..._purposeOptions.map((purposeText) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: _buildPurposeOption(
+                          context,
+                          purposeText,
+                          purposeText == 'Menurunkan Berat Badan'
+                              ? 'assets/images/purpose_lose_weight.png'
+                              : (purposeText == 'Menaikkan Berat Badan'
+                                  ? 'assets/images/purpose_gain_weight.png'
+                                  : 'assets/images/purpose_stay_healthy.png'),
+                          const Color(0xFF01456D),
+                          const Color(0xFFE6EFF4),
+                        ),
+                      );
+                    }),
+                    const Spacer(),
+                    const SizedBox(height: 40),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        // Tombol 'Selesai' akan memicu registrasi
                         onPressed:
                             _selectedPurpose != null
                                 ? () => _completeRegistration()
-                                : null, // Tombol dinonaktifkan jika belum ada tujuan terpilih
+                                : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF01456D), // Dark Blue
+                          backgroundColor: const Color(0xFF01456D),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 18),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              8,
-                            ), // Sudut tombol 8px
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           elevation: 5,
                           textStyle: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            fontFamily: 'Poppins', // Font Poppins
+                            fontFamily: 'Poppins',
                           ),
                         ),
-                        child: const Text(
-                          'Selesai',
-                        ), // Mengubah teks tombol dari 'Next' menjadi 'Selesai'
+                        child: const Text('Selesai'),
                       ),
                     ),
-                    const SizedBox(
-                      height: 40,
-                    ), // Memberi sedikit padding dari bawah layar, disesuaikan agar tidak terlalu banyak
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
-      // HAPUS BARIS INI (Ln 328 di gambar Anda) -> ],
-      // HAPUS BARIS INI (Ln 329 di gambar Anda) -> ),
-      // HAPUS BARIS INI (Ln 330 di gambar Anda) -> );
     );
   }
 
-  // Widget helper untuk membangun setiap opsi tujuan
   Widget _buildPurposeOption(
     BuildContext context,
     String title,
     String imagePath,
-    Color selectedBorderColor, // Parameter baru
-    Color defaultBackgroundColor, // Parameter baru
+    Color selectedBorderColor,
+    Color defaultBackgroundColor,
   ) {
     bool isSelected = _selectedPurpose == title;
     return GestureDetector(
@@ -381,21 +328,15 @@ class _PurposeScreenState extends State<PurposeScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         decoration: BoxDecoration(
-          color:
-              isSelected
-                  ? const Color(0xFFB0CCDD) // Light :active Blue saat terpilih
-                  : defaultBackgroundColor, // Light Blue untuk default
-          borderRadius: BorderRadius.circular(8), // Mengubah ke 8px
+          color: isSelected ? const Color(0xFFB0CCDD) : defaultBackgroundColor,
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color:
-                isSelected
-                    ? selectedBorderColor // Dark Blue untuk border terpilih
-                    : Colors.transparent, // Transparan
+            color: isSelected ? selectedBorderColor : Colors.transparent,
             width: isSelected ? 2 : 0,
           ),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x1A9E9E9E), // Colors.grey.withOpacity(0.1)
+              color: Color(0x1A9E9E9E),
               spreadRadius: 1,
               blurRadius: 5,
               offset: Offset(0, 3),
@@ -410,15 +351,11 @@ class _PurposeScreenState extends State<PurposeScreen> {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF002033), // Darker Blue
-                fontFamily: 'Poppins', // Font Poppins
+                color: Color(0xFF002033),
+                fontFamily: 'Poppins',
               ),
             ),
-            Image.asset(
-              imagePath,
-              height: 100, // Ukuran gambar diperbesar
-              width: 100, // Ukuran gambar diperbesar
-            ),
+            Image.asset(imagePath, height: 100, width: 100),
           ],
         ),
       ),

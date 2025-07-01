@@ -23,6 +23,7 @@ class User extends Authenticatable
         'weight',
         'target_weight',
         'goal',
+        'activity_level', // BARU: Tambahkan activity_level ke fillable
     ];
 
     protected $hidden = [
@@ -36,6 +37,7 @@ class User extends Authenticatable
         'height' => 'float',
         'weight' => 'float',
         'target_weight' => 'float',
+        'activity_level' => 'string', // BARU: Tambahkan activity_level ke casts
     ];
 
     /**
