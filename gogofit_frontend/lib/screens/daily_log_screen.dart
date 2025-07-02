@@ -1,16 +1,20 @@
+// lib/screens/daily_log_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:gogofit_frontend/screens/select_meal_screen.dart';
+import 'package:gogofit_frontend/models/exercise_log.dart';
 import 'package:gogofit_frontend/models/meal_data.dart';
+import 'package:gogofit_frontend/models/notification_data.dart';
+import 'package:gogofit_frontend/models/user_profile_data.dart';
+import 'package:gogofit_frontend/screens/add_exercise_screen.dart';
 import 'package:gogofit_frontend/screens/add_meal_manual_screen.dart';
 import 'package:gogofit_frontend/screens/dashboard_screen.dart';
+import 'package:gogofit_frontend/screens/edit_exercise_screen.dart'; // PERBAIKAN: Import halaman edit
 import 'package:gogofit_frontend/screens/edit_meal_list_screen.dart';
 import 'package:gogofit_frontend/screens/more_options_screen.dart';
-import 'package:gogofit_frontend/models/notification_data.dart';
 import 'package:gogofit_frontend/screens/notifications_screen.dart';
-import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
-import 'package:intl/intl.dart'; // Import IntL for DateFormat
-import 'package:gogofit_frontend/models/user_profile_data.dart'; // Import UserProfile model untuk target kalori/gula
+import 'package:gogofit_frontend/screens/select_meal_screen.dart';
+import 'package:gogofit_frontend/services/api_service.dart';
+import 'package:intl/intl.dart';
 
 class DailyLogScreen extends StatefulWidget {
   const DailyLogScreen({super.key});
@@ -24,82 +28,68 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
   final Color darkerBlue = const Color(0xFF002033);
   final Color lightBlueCardBackground = const Color(0xFFD9E7EF);
   final Color searchBarIconColor = const Color(0xFF6DCFF6);
-
   final Color white70Opacity = const Color.fromARGB(179, 255, 255, 255);
   final Color black25Opacity = const Color.fromARGB(25, 0, 0, 0);
   final Color black51Opacity = const Color.fromARGB(51, 0, 0, 0);
-
   final Color darkerBlue70Opacity = const Color.fromARGB(179, 0, 32, 51);
   final Color darkerBlue60Opacity = const Color.fromARGB(153, 0, 32, 51);
   final Color alertRedColor = const Color(0xFFEF5350);
 
   DateTime _selectedDate = DateTime.now();
-  List<MealEntry> _foodLogs = []; // Untuk menyimpan log makanan dari API
-  bool _isLoading = false; // Untuk indikator loading
-  final ApiService _apiService = ApiService(); // Inisialisasi ApiService
-
-  final double _exerciseCalories = 190.0; // Ini tetap statis untuk sementara
+  List<MealEntry> _foodLogs = [];
+  List<ExerciseLog> _exerciseLogs = [];
+  bool _isLoading = false;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
     super.initState();
-    _loadInitialData(); // Panggil metode untuk memuat data awal
-    // BARU: Tambahkan listener untuk perubahan profil pengguna
-    currentUserProfile.addListener(_updateTargetValuesAndFetchLogs);
+    _fetchDataForSelectedDate();
+    currentUserProfile.addListener(_updateTargetValuesAndFetchData);
   }
 
   @override
   void dispose() {
-    // BARU: Hapus listener untuk perubahan profil pengguna
-    currentUserProfile.removeListener(_updateTargetValuesAndFetchLogs);
+    currentUserProfile.removeListener(_updateTargetValuesAndFetchData);
     super.dispose();
   }
 
-  // BARU: Metode untuk memperbarui nilai target dan memicu fetchLogs
-  void _updateTargetValuesAndFetchLogs() {
-    setState(() {
-      // Nilai target diambil langsung dari currentUserProfile.value
-      // Tidak perlu variabel state _targetDailyCalories dan _targetDailySugar lagi
-    });
-    // Panggil _fetchFoodLogs untuk memastikan UI diperbarui dengan target baru
-    _fetchFoodLogs();
+  void _updateTargetValuesAndFetchData() {
+    if (mounted) {
+      setState(() {});
+    }
+    _fetchDataForSelectedDate();
   }
 
-  Future<void> _loadInitialData() async {
-    // _targetDailyCalories dan _targetDailySugar akan diambil di `build` method
-    // atau di `_updateTargetValuesAndFetchLogs`
-
-    await _fetchFoodLogs();
-  }
-
-  Future<void> _fetchFoodLogs() async {
+  Future<void> _fetchDataForSelectedDate() async {
+    if (!mounted) return;
     setState(() {
-      _isLoading = true; // Mulai loading
+      _isLoading = true;
     });
     try {
-      final List<MealEntry> fetchedLogs = await _apiService.getFoodLogs(
+      final futureFoodLogs = _apiService.getFoodLogs(date: _selectedDate);
+      final futureExerciseLogs = _apiService.getExerciseLogs(
         date: _selectedDate,
       );
+
+      final results = await Future.wait([futureFoodLogs, futureExerciseLogs]);
+
       if (!mounted) return;
       setState(() {
-        _foodLogs = fetchedLogs; // Perbarui list _foodLogs
+        _foodLogs = results[0] as List<MealEntry>;
+        _exerciseLogs = results[1] as List<ExerciseLog>;
       });
-      debugPrint(
-        "Fetched food logs for ${_selectedDate.toIso8601String().split('T')[0]}: ${_foodLogs.length} entries",
-      );
     } catch (e) {
-      debugPrint("Error fetching food logs: $e");
+      debugPrint("Error fetching daily logs: $e");
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memuat log makanan: $e')));
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat data harian: $e')));
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false; // Selesai loading
+          _isLoading = false;
         });
-      } else {
-        debugPrint('Widget not mounted in finally block. Cannot set state.');
       }
     }
   }
@@ -109,7 +99,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (BuildContext context, Widget? child) {
         return Theme(
           data: ThemeData.light().copyWith(
@@ -134,7 +124,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
       setState(() {
         _selectedDate = picked;
       });
-      await _fetchFoodLogs(); // Muat ulang log makanan saat tanggal berubah
+      await _fetchDataForSelectedDate();
     }
   }
 
@@ -142,63 +132,112 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
     setState(() {
       _selectedDate = _selectedDate.subtract(const Duration(days: 1));
     });
-    await _fetchFoodLogs();
+    await _fetchDataForSelectedDate();
   }
 
   void _goToNextDay() async {
     setState(() {
       _selectedDate = _selectedDate.add(const Duration(days: 1));
     });
-    await _fetchFoodLogs();
+    await _fetchDataForSelectedDate();
   }
 
   String _formatDate(DateTime date) {
-    if (date.day == DateTime.now().day &&
-        DateTime.now().month ==
-            date.month && // PERBAIKAN: Gunakan DateTime.now()
-        date.year == DateTime.now().year) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    if (dateOnly == today) {
       return 'Hari ini';
-    } else if (date.day ==
-            DateTime.now().subtract(const Duration(days: 1)).day &&
-        date.month == DateTime.now().month &&
-        date.year == DateTime.now().year) {
+    } else if (dateOnly == yesterday) {
       return 'Kemarin';
     } else {
-      // PERBAIKAN: Ganti 'Geißler' menjadi format tahun yang benar 'yyyy'
-      return DateFormat('dd MMMMyyyy', 'id').format(date);
+      return DateFormat('dd MMMM yyyy', 'id').format(date);
+    }
+  }
+
+  Future<void> _deleteExerciseLog(int logId) async {
+    final bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Hapus Latihan'),
+          content: const Text('Anda yakin ingin menghapus log latihan ini?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Batal'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmDelete == true) {
+      try {
+        final response = await _apiService.deleteExerciseLog(logId);
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Proses selesai.'),
+            backgroundColor: response['success'] ? Colors.green : Colors.red,
+          ),
+        );
+
+        if (response['success']) {
+          _fetchDataForSelectedDate();
+        }
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _navigateToEditExerciseScreen(ExerciseLog exerciseLog) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditExerciseScreen(exerciseLog: exerciseLog),
+      ),
+    );
+    if (result == true) {
+      _fetchDataForSelectedDate();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // BARU: Ambil target kalori dan gula dari profil pengguna yang dinamis
     final double targetDailyCalories =
         currentUserProfile.value.calculatedTargetCalories;
     final double targetDailySugar =
         currentUserProfile.value.calculatedTargetSugar;
-
-    // FIX: Pastikan _foodLogs difilter berdasarkan _selectedDate
-    final List<MealEntry> mealsForSelectedDate =
-        _foodLogs
-            .where(
-              (meal) =>
-                  meal.timestamp.year == _selectedDate.year &&
-                  meal.timestamp.month == _selectedDate.month &&
-                  meal.timestamp.day == _selectedDate.day,
-            )
-            .toList();
-
-    final double totalCaloriesConsumed = mealsForSelectedDate.fold(
+    final double totalCaloriesConsumed = _foodLogs.fold(
       0.0,
       (sum, meal) => sum + meal.calories,
     );
-    final double totalSugarConsumed = mealsForSelectedDate.fold(
+    final double totalSugarConsumed = _foodLogs.fold(
       0.0,
       (sum, meal) => sum + meal.sugar,
     );
+    final double totalExerciseCalories = _exerciseLogs.fold(
+      0.0,
+      (sum, log) => sum + log.caloriesBurned,
+    );
 
     double remainingCalories =
-        targetDailyCalories - totalCaloriesConsumed + _exerciseCalories;
+        targetDailyCalories - totalCaloriesConsumed + totalExerciseCalories;
     double remainingSugar = targetDailySugar - totalSugarConsumed;
 
     String calorieUnit = 'Sisa';
@@ -309,7 +348,6 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Bagian Navigasi Tanggal
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -354,8 +392,6 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-
-                      // Kartu Sisa Kalori
                       _buildSummaryCard(
                         title: 'Sisa Kalori',
                         data: [
@@ -369,7 +405,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                           },
                           {
                             'label': 'Latihan',
-                            'value': _exerciseCalories.toStringAsFixed(0),
+                            'value': totalExerciseCalories.toStringAsFixed(0),
                           },
                           {
                             'label': 'Sisa',
@@ -383,8 +419,6 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                         unitForSummary: calorieUnit,
                       ),
                       const SizedBox(height: 16),
-
-                      // Kartu Sisa Gula
                       _buildSummaryCard(
                         title: 'Sisa Gula',
                         data: [
@@ -409,12 +443,12 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                         unitForSummary: sugarUnit,
                       ),
                       const SizedBox(height: 24),
-
-                      // Bagian Daftar Makanan per Santapan
+                      _buildExerciseSection(context, _exerciseLogs),
+                      const SizedBox(height: 24),
                       _buildMealSection(
                         context,
                         'Sarapan',
-                        mealsForSelectedDate
+                        _foodLogs
                             .where((meal) => meal.mealType == 'Sarapan')
                             .toList(),
                       ),
@@ -422,7 +456,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                       _buildMealSection(
                         context,
                         'Makan Siang',
-                        mealsForSelectedDate
+                        _foodLogs
                             .where((meal) => meal.mealType == 'Makan Siang')
                             .toList(),
                       ),
@@ -430,7 +464,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                       _buildMealSection(
                         context,
                         'Makan Malam',
-                        mealsForSelectedDate
+                        _foodLogs
                             .where((meal) => meal.mealType == 'Makan Malam')
                             .toList(),
                       ),
@@ -438,7 +472,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                       _buildMealSection(
                         context,
                         'Camilan',
-                        mealsForSelectedDate
+                        _foodLogs
                             .where((meal) => meal.mealType == 'Camilan')
                             .toList(),
                       ),
@@ -453,7 +487,6 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
         child: Stack(
           alignment: Alignment.bottomCenter,
           children: [
-            // Wave background using SVG asset
             Positioned(
               bottom: 0,
               left: 0,
@@ -468,7 +501,6 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                 height: 170,
               ),
             ),
-            // Bottom Navigation Bar
             Positioned(
               bottom: 0,
               left: 0,
@@ -502,7 +534,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                     label: 'Lainnya',
                   ),
                 ],
-                currentIndex: 1, // Atur currentIndex ke 1 untuk DailyLogScreen
+                currentIndex: 1,
                 onTap: (index) {
                   if (index == 0) {
                     Navigator.pushReplacement(
@@ -524,7 +556,6 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                 },
               ),
             ),
-            // Search bar (diposisikan sama dengan Dashboard)
             Positioned(
               bottom: 95,
               left: 40,
@@ -613,7 +644,6 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
     );
   }
 
-  // Widget helper untuk membuat kartu ringkasan (Kalori, Gula)
   Widget _buildSummaryCard({
     required String title,
     required List<Map<String, dynamic>> data,
@@ -738,7 +768,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                           ),
                     ),
                   );
-                  _fetchFoodLogs();
+                  _fetchDataForSelectedDate();
                 },
               ),
             ],
@@ -799,7 +829,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                             AddMealManualScreen(initialMealType: mealType),
                   ),
                 );
-                _fetchFoodLogs();
+                _fetchDataForSelectedDate();
               },
               icon: Icon(
                 Icons.add_circle_outline,
@@ -819,9 +849,177 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(
-                    color: Color.fromARGB((255 * 0.5).round(), 1, 92, 145),
+                  side: BorderSide(color: primaryBlueNormal.withAlpha(128)),
+                ),
+                backgroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExerciseSection(
+    BuildContext context,
+    List<ExerciseLog> exercises,
+  ) {
+    final double totalCalories = exercises.fold(
+      0.0,
+      (sum, ex) => sum + ex.caloriesBurned,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: lightBlueCardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: black51Opacity,
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Latihan',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: darkerBlue,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+              Text(
+                '${totalCalories.toStringAsFixed(0)} kkal',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: darkerBlue,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (exercises.isEmpty)
+            Text(
+              'Belum ada latihan dicatat.',
+              style: TextStyle(
+                fontSize: 14,
+                color: darkerBlue60Opacity,
+                fontFamily: 'Poppins',
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children:
+                  exercises.map((ex) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  ex.activityName,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: darkerBlue,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  '${ex.durationMinutes} menit',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: darkerBlue60Opacity,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${ex.caloriesBurned} kkal',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: darkerBlue,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.edit_note,
+                              color: darkerBlue70Opacity,
+                            ),
+                            onPressed: () => _navigateToEditExerciseScreen(ex),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.all(4),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: alertRedColor,
+                            ),
+                            onPressed: () => _deleteExerciseLog(ex.id),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.all(4),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+            ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) =>
+                            AddExerciseScreen(selectedDate: _selectedDate),
                   ),
+                );
+                if (result == true) {
+                  _fetchDataForSelectedDate();
+                }
+              },
+              icon: Icon(
+                Icons.add_circle_outline,
+                color: primaryBlueNormal,
+                size: 24,
+              ),
+              label: Text(
+                'TAMBAH LATIHAN',
+                style: TextStyle(
+                  color: primaryBlueNormal,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: primaryBlueNormal.withAlpha(128)),
                 ),
                 backgroundColor: Colors.white,
               ),

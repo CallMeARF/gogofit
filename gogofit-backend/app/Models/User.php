@@ -7,11 +7,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Models\FoodLog;
-use Illuminate\Auth\Passwords\CanResetPassword; // BARU: Import CanResetPassword trait
+use App\Models\ExerciseLog; // PERBAIKAN 1: Import model ExerciseLog
+use Illuminate\Auth\Passwords\CanResetPassword;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, CanResetPassword; // BARU: Tambahkan CanResetPassword
+    use HasApiTokens, HasFactory, Notifiable, CanResetPassword;
 
     protected $fillable = [
         'name',
@@ -23,7 +24,7 @@ class User extends Authenticatable
         'weight',
         'target_weight',
         'goal',
-        'activity_level', // BARU: Tambahkan activity_level ke fillable
+        'activity_level',
     ];
 
     protected $hidden = [
@@ -37,7 +38,7 @@ class User extends Authenticatable
         'height' => 'float',
         'weight' => 'float',
         'target_weight' => 'float',
-        'activity_level' => 'string', // BARU: Tambahkan activity_level ke casts
+        'activity_level' => 'string',
     ];
 
     /**
@@ -46,5 +47,14 @@ class User extends Authenticatable
     public function foodLogs()
     {
         return $this->hasMany(FoodLog::class);
+    }
+
+    /**
+     * PERBAIKAN 2: Tambahkan relasi untuk log latihan.
+     * Get the exercise logs for the user.
+     */
+    public function exerciseLogs()
+    {
+        return $this->hasMany(ExerciseLog::class);
     }
 }

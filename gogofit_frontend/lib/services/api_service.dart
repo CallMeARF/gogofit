@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 // Import model dan exception
 import '../models/user_profile_data.dart';
 import '../models/meal_data.dart';
+import '../models/exercise_log.dart';
 import '../exceptions/unauthorized_exception.dart';
 import './auth_token_manager.dart'; // <-- BARU: Impor AuthTokenManager yang sudah dipisah
 import '../screens/auth/login_screen.dart'; // <-- Import LoginScreen untuk navigasi
@@ -597,6 +598,88 @@ class ApiService {
         'success': false,
         'message':
             'Terjadi kesalahan saat menghapus log makanan: ${e.toString().contains('API error:') ? e.toString().split('API error:').last.trim() : 'Unknown error'}',
+      };
+    }
+  }
+
+  // --- API UNTUK EXERCISE LOGS ---
+
+  /// Mengambil log latihan untuk tanggal tertentu.
+  Future<List<ExerciseLog>> getExerciseLogs({required DateTime date}) async {
+    final String dateString = date.toIso8601String().split('T')[0];
+    try {
+      final response = await get('exercise-logs?date=$dateString');
+      List<dynamic> data = jsonDecode(response.body)['data'];
+      return data.map((json) => ExerciseLog.fromJson(json)).toList();
+    } on UnauthorizedException {
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching exercise logs: $e');
+      rethrow;
+    }
+  }
+
+  /// Menambahkan log latihan baru.
+  Future<Map<String, dynamic>> addExerciseLog(
+    Map<String, dynamic> exerciseData,
+  ) async {
+    try {
+      final response = await post('exercise-logs', exerciseData);
+      return jsonDecode(response.body);
+    } on UnauthorizedException {
+      return {
+        'success': false,
+        'message': 'Autentikasi gagal.',
+        'statusCode': 401,
+      };
+    } catch (e) {
+      debugPrint('Error adding exercise log: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Memperbarui log latihan yang sudah ada.
+  Future<Map<String, dynamic>> updateExerciseLog(
+    int id,
+    Map<String, dynamic> exerciseData,
+  ) async {
+    try {
+      final response = await put('exercise-logs/$id', exerciseData);
+      return jsonDecode(response.body);
+    } on UnauthorizedException {
+      return {
+        'success': false,
+        'message': 'Autentikasi gagal.',
+        'statusCode': 401,
+      };
+    } catch (e) {
+      debugPrint('Error updating exercise log: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Menghapus log latihan.
+  Future<Map<String, dynamic>> deleteExerciseLog(int id) async {
+    try {
+      final response = await delete('exercise-logs/$id');
+      return jsonDecode(response.body);
+    } on UnauthorizedException {
+      return {
+        'success': false,
+        'message': 'Autentikasi gagal.',
+        'statusCode': 401,
+      };
+    } catch (e) {
+      debugPrint('Error deleting exercise log: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan: ${e.toString()}',
       };
     }
   }
