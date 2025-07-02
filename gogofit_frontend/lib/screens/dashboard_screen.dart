@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:gogofit_frontend/models/exercise_log.dart'; // BARU
+import 'package:gogofit_frontend/screens/add_exercise_screen.dart'; // BARU
 import 'package:gogofit_frontend/screens/select_meal_screen.dart';
 import 'package:gogofit_frontend/models/meal_data.dart';
 import 'package:gogofit_frontend/screens/daily_log_screen.dart';
 import 'package:gogofit_frontend/screens/more_options_screen.dart';
 import 'package:gogofit_frontend/models/notification_data.dart';
 import 'package:gogofit_frontend/screens/notifications_screen.dart';
-import 'package:gogofit_frontend/models/user_profile_data.dart'; // BARU: Import UserProfile model dan currentUserProfile
+import 'package:gogofit_frontend/models/user_profile_data.dart';
+import 'package:gogofit_frontend/services/api_service.dart'; // BARU
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,79 +25,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final Color orangeColor = const Color(0xFFF2A900);
   final Color sugarArcNewColor = const Color(0xFF4CAF50); // Hijau terang
   final Color searchBarIconColor = const Color(0xFF6DCFF6);
-  final Color white70Opacity = Color.fromARGB(
-    (255 * 0.7).round(),
-    255,
-    255,
-    255,
-  );
-  final Color white20Opacity = Color.fromARGB(
-    (255 * 0.2).round(),
-    255,
-    255,
-    255,
-  );
-  final Color black25Opacity = Color.fromARGB(25, 0, 0, 0);
-  final Color black51Opacity = Color.fromARGB(51, 0, 0, 0);
+  final Color white70Opacity = const Color.fromARGB(179, 255, 255, 255);
+  final Color white20Opacity = const Color.fromARGB(51, 255, 255, 255);
+  final Color black25Opacity = const Color.fromARGB(25, 0, 0, 0);
+  final Color black51Opacity = const Color.fromARGB(51, 0, 0, 0);
   final Color alertRedColor = const Color(0xFFEF5350);
-  final Color successGreenColor = const Color(
-    0xFF4CAF50,
-  ); // Hijau untuk status "Tercapai"
+  final Color successGreenColor = const Color(0xFF4CAF50);
 
-  double _currentCaloriesConsumed = 0.0;
-  double _currentSugarConsumed = 0.0;
-
-  // Nilai _burnedCaloriesFromExercise untuk saat ini tetap statis
-  final double _burnedCaloriesFromExercise = 190.0; // Dari perencanaan fitur
+  // BARU: State untuk data dinamis
+  final ApiService _apiService = ApiService();
+  List<MealEntry> _foodLogs = [];
+  List<ExerciseLog> _exerciseLogs = [];
+  bool _isLoading = true;
 
   final double _calorieTolerance = 50.0;
-  final double _sugarTolerance = 0.0; // Toleransi gula tetap 0.0
+  final double _sugarTolerance = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _updateTotals();
-    userMeals.addListener(_updateTotals);
-    // BARU: Tambahkan listener untuk perubahan profil pengguna
-    currentUserProfile.addListener(_updateTotals);
+    _fetchDataForToday();
+    currentUserProfile.addListener(_handleProfileChange);
   }
 
   @override
   void dispose() {
-    userMeals.removeListener(_updateTotals);
-    // BARU: Hapus listener untuk perubahan profil pengguna
-    currentUserProfile.removeListener(_updateTotals);
+    currentUserProfile.removeListener(_handleProfileChange);
     super.dispose();
   }
 
-  void _updateTotals() {
-    setState(() {
-      _currentCaloriesConsumed =
-          calculateTotalCalories(); // Ini adalah kalori makanan
-      _currentSugarConsumed = calculateTotalSugar();
-      debugPrint(
-        'DEBUG Dashboard: Kalori Makanan Konsumsi Saat Ini: $_currentCaloriesConsumed kkal',
-      );
-      debugPrint(
-        'DEBUG Dashboard: Gula Konsumsi Saat Ini: $_currentSugarConsumed gram',
-      );
-      // Data profil juga akan memicu rebuild via listener, jadi nilai target akan diperbarui otomatis
-    });
+  void _handleProfileChange() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _fetchDataForToday() async {
+    if (!mounted) return;
+    // Tidak set _isLoading jika ini adalah refresh, agar tidak ada lompatan UI
+    if (_foodLogs.isEmpty && _exerciseLogs.isEmpty) {
+      setState(() => _isLoading = true);
+    }
+
+    try {
+      final today = DateTime.now();
+      final futureFoodLogs = _apiService.getFoodLogs(date: today);
+      final futureExerciseLogs = _apiService.getExerciseLogs(date: today);
+
+      final results = await Future.wait([futureFoodLogs, futureExerciseLogs]);
+
+      if (!mounted) return;
+      setState(() {
+        _foodLogs = results[0] as List<MealEntry>;
+        _exerciseLogs = results[1] as List<ExerciseLog>;
+      });
+    } catch (e) {
+      debugPrint("Error fetching dashboard data: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat data dasbor: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // BARU: Ambil target kalori dan gula dari profil pengguna yang dinamis
-    // PERBAIKAN LINT: Hapus underscore dari nama variabel lokal
     final double targetDailyCalories =
         currentUserProfile.value.calculatedTargetCalories;
     final double targetDailySugar =
         currentUserProfile.value.calculatedTargetSugar;
 
-    // Definisi Kalori Bersih: Kalori dari Makanan dikurangi Kalori Latihan
-    double netCalories = _currentCaloriesConsumed - _burnedCaloriesFromExercise;
+    final double currentCaloriesConsumed = _foodLogs.fold(
+      0.0,
+      (sum, meal) => sum + meal.calories,
+    );
+    final double currentSugarConsumed = _foodLogs.fold(
+      0.0,
+      (sum, meal) => sum + meal.sugar,
+    );
+    final double burnedCaloriesFromExercise = _exerciseLogs.fold(
+      0.0,
+      (sum, log) => sum + log.caloriesBurned,
+    );
 
-    // Persentase untuk arc didasarkan pada netCalories dibandingkan target
+    double netCalories = currentCaloriesConsumed - burnedCaloriesFromExercise;
+
     double caloriePercentage = 0.0;
     if (targetDailyCalories > 0) {
       caloriePercentage = (netCalories.clamp(0.0, double.infinity) /
@@ -104,57 +123,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     double sugarPercentage = 0.0;
     if (targetDailySugar > 0) {
-      sugarPercentage = (_currentSugarConsumed / targetDailySugar).clamp(
+      sugarPercentage = (currentSugarConsumed / targetDailySugar).clamp(
         0.0,
         1.0,
       );
     }
 
-    // --- Logika Penentuan Unit dan Warna untuk Kalori ---
     String calorieUnit;
     String calorieValue;
     Color calorieValueColor;
-
     if (netCalories >= targetDailyCalories - _calorieTolerance &&
         netCalories <= targetDailyCalories + _calorieTolerance) {
-      // Tercapai dalam toleransi
       calorieUnit = 'Tercapai!';
-      calorieValue = '0'; // Tampilkan 0 karena sudah tercapai
+      calorieValue = '0';
       calorieValueColor = successGreenColor;
     } else if (netCalories > targetDailyCalories + _calorieTolerance) {
-      // Kelebihan (Kalori bersih melebihi target)
       calorieUnit = 'Kelebihan';
       calorieValue = (netCalories - targetDailyCalories).toStringAsFixed(0);
       calorieValueColor = alertRedColor;
     } else {
-      // Sisa (Kalori bersih di bawah target)
       calorieUnit = 'Sisa';
       calorieValue = (targetDailyCalories - netCalories).toStringAsFixed(0);
       calorieValueColor = Colors.white;
     }
 
-    // --- Logika Penentuan Unit dan Warna untuk Gula ---
     String sugarUnit;
     String sugarValue;
     Color sugarValueColor;
-
-    double remainingSugarCalc = targetDailySugar - _currentSugarConsumed;
-
-    // Gula Tercapai jika persis sama dengan target
-    if ((_currentSugarConsumed - targetDailySugar).abs() < 0.001) {
+    double remainingSugarCalc = targetDailySugar - currentSugarConsumed;
+    if ((currentSugarConsumed - targetDailySugar).abs() < 0.001) {
       sugarUnit = 'Tercapai!';
-      sugarValue = '0'; // Tampilkan 0 karena sudah tercapai
+      sugarValue = '0';
       sugarValueColor = successGreenColor;
-    } else if (_currentSugarConsumed > targetDailySugar + _sugarTolerance) {
-      // Total gula > 30.0 (karena toleransi 0.0)
-      // Kelebihan
+    } else if (currentSugarConsumed > targetDailySugar + _sugarTolerance) {
       sugarUnit = 'Kelebihan';
-      sugarValue = (_currentSugarConsumed - targetDailySugar).toStringAsFixed(
-        1,
-      );
+      sugarValue = (currentSugarConsumed - targetDailySugar).toStringAsFixed(1);
       sugarValueColor = alertRedColor;
     } else {
-      // Sisa
       sugarUnit = 'Sisa';
       sugarValue = remainingSugarCalc.toStringAsFixed(1);
       sugarValueColor = Colors.white;
@@ -241,69 +246,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Hari ini',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: darkerBlue,
-                  fontFamily: 'Poppins',
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: _fetchDataForToday,
+                child: SingleChildScrollView(
+                  physics:
+                      const AlwaysScrollableScrollPhysics(), // Agar bisa refresh walaupun konten sedikit
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hari ini',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: darkerBlue,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildMetricCard(
+                          context,
+                          title: 'Kalori',
+                          currentValue: calorieValue,
+                          unit: calorieUnit,
+                          valueColor: calorieValueColor,
+                          target: targetDailyCalories.toStringAsFixed(0),
+                          consumed: currentCaloriesConsumed.toStringAsFixed(0),
+                          exercise: burnedCaloriesFromExercise.toStringAsFixed(
+                            0,
+                          ), // PERBAIKAN: Gunakan nilai dinamis
+                          arcColor: orangeColor,
+                          consumedIcon: Icons.restaurant_menu,
+                          exerciseIcon: Icons.local_fire_department,
+                          percentage: caloriePercentage,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildMetricCard(
+                          context,
+                          title: 'Gula',
+                          currentValue: sugarValue,
+                          unit: sugarUnit,
+                          valueColor: sugarValueColor,
+                          target: targetDailySugar.toStringAsFixed(1),
+                          consumed: currentSugarConsumed.toStringAsFixed(1),
+                          arcColor: sugarArcNewColor,
+                          consumedIcon: Icons.restaurant_menu,
+                          percentage: sugarPercentage,
+                        ),
+                        const SizedBox(height: 24),
+                        // BARU: Tombol aksi
+                        _buildActionButtons(context),
+                        const SizedBox(height: 190),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Calorie Card
-              _buildMetricCard(
-                // PANGGILAN SUDAH BENAR
-                context,
-                title: 'Kalori',
-                currentValue:
-                    calorieValue, // Sisa/Tercapai/Kelebihan dari netCalories
-                unit: calorieUnit, // Unit: Sisa/Tercapai/Kelebihan
-                valueColor: calorieValueColor, // Warna dinamis
-                target: targetDailyCalories.toStringAsFixed(
-                  0,
-                ), // Gunakan nilai dinamis
-                consumed: _currentCaloriesConsumed.toStringAsFixed(0),
-                exercise: _burnedCaloriesFromExercise.toStringAsFixed(0),
-                arcColor: orangeColor,
-                consumedIcon: Icons.restaurant_menu,
-                exerciseIcon: Icons.local_fire_department,
-                percentage:
-                    caloriePercentage, // Persentase berdasarkan netCalories
-              ),
-              const SizedBox(height: 16),
-
-              // Sugar Card
-              _buildMetricCard(
-                // PANGGILAN SUDAH BENAR
-                context,
-                title: 'Gula',
-                currentValue:
-                    sugarValue, // Gunakan nilai yang sudah disesuaikan
-                unit: sugarUnit, // Gunakan unit yang sudah disesuaikan
-                valueColor: sugarValueColor, // Gunakan warna dinamis
-                target: targetDailySugar.toStringAsFixed(
-                  1,
-                ), // Gunakan nilai dinamis
-                consumed: _currentSugarConsumed.toStringAsFixed(1),
-                arcColor: sugarArcNewColor,
-                consumedIcon: Icons.restaurant_menu,
-                percentage: sugarPercentage,
-              ),
-              const SizedBox(height: 16),
-
-              const SizedBox(height: 190),
-            ],
-          ),
-        ),
-      ),
       bottomNavigationBar: Container(
         height: 170,
         color: Colors.transparent,
@@ -359,9 +362,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
                 currentIndex: 0,
                 onTap: (index) {
-                  if (index == 0) {
-                    debugPrint('Already on Dashboard');
-                  } else if (index == 1) {
+                  if (index == 1) {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
@@ -467,8 +468,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Widget helper to create metric cards (Calories, Sugar)
-  // PERBAIKAN: Pindahkan metode ini ke dalam kelas _DashboardScreenState
+  // BARU: Widget untuk tombol aksi
+  Widget _buildActionButtons(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.restaurant_menu, color: Colors.white),
+            label: const Text('MAKANAN'),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SelectMealScreen(),
+                ),
+              );
+              _fetchDataForToday(); // Refresh data setelah kembali
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryBlueNormal,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              textStyle: const TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.fitness_center, color: Colors.white),
+            label: const Text('LATIHAN'),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) =>
+                          AddExerciseScreen(selectedDate: DateTime.now()),
+                ),
+              );
+              if (result == true) {
+                _fetchDataForToday();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: orangeColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              textStyle: const TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMetricCard(
     BuildContext context, {
     required String title,
@@ -476,7 +544,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String unit,
     Color? valueColor,
     String? target,
-    required String consumed, // Ini adalah kalori makanan yang murni
+    required String consumed,
     String? exercise,
     required Color arcColor,
     required IconData consumedIcon,
@@ -484,18 +552,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     double percentage = 0.0,
   }) {
     String targetDisplay = target ?? '';
-    String consumedDisplay = consumed; // Sudah positif
+    String consumedDisplay = consumed;
     String exerciseDisplay = exercise ?? '';
-
     if (title == 'Kalori') {
       targetDisplay = '$target kkal';
-      consumedDisplay = '$consumed kkal'; // Pastikan ini kkal
+      consumedDisplay = '$consumed kkal';
       exerciseDisplay = '$exercise kkal';
     } else if (title == 'Gula') {
       targetDisplay = '$target gram';
       consumedDisplay = '$consumed gram';
     }
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16.0),
@@ -526,13 +592,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Donut Chart / Arc Section
               SizedBox(
                 width: 120,
                 height: 120,
                 child: CustomPaint(
                   painter: _ArcPainter(
-                    // PANGGILAN SUDAH BENAR
                     arcColor: arcColor,
                     backgroundColor: white20Opacity,
                     percentage: percentage,
@@ -544,7 +608,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Text(
                           currentValue,
                           style: TextStyle(
-                            fontSize: 28, // Ukuran font diperkecil
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
                             color: valueColor ?? Colors.white,
                             fontFamily: 'Poppins',
@@ -553,7 +617,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Text(
                           unit,
                           style: TextStyle(
-                            fontSize: 14, // Ukuran font diperkecil
+                            fontSize: 14,
                             color: white70Opacity,
                             fontFamily: 'Poppins',
                           ),
@@ -564,23 +628,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(width: 24),
-              // Target, Food, Exercise Details Section
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (target != null)
                       _buildDetailRow(
-                        // PANGGILAN SUDAH BENAR
                         icon: Icons.flag,
                         label: 'Sasaran Dasar',
                         value: targetDisplay,
                         iconColor: Colors.white,
                         textColor: Colors.white,
                       ),
-                    // Menampilkan Kalori Makanan yang murni (_currentCaloriesConsumed)
                     _buildDetailRow(
-                      // PANGGILAN SUDAH BENAR
                       icon: consumedIcon,
                       label: 'Makanan',
                       value: consumedDisplay,
@@ -589,7 +649,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     if (exercise != null && exerciseIcon != null)
                       _buildDetailRow(
-                        // PANGGILAN SUDAH BENAR
                         icon: exerciseIcon,
                         label: 'Latihan',
                         value: exerciseDisplay,
@@ -606,8 +665,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Widget helper to create detail rows in metric cards with a vertical separator line
-  // PERBAIKAN: Pindahkan metode ini ke dalam kelas _DashboardScreenState
   Widget _buildDetailRow({
     required IconData icon,
     required String label,
@@ -651,12 +708,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// CustomPainter for drawing arc/donut chart
-// PERBAIKAN: Biarkan kelas ini di luar kelas _DashboardScreenState
 class _ArcPainter extends CustomPainter {
   final Color arcColor;
   final Color backgroundColor;
-  final double percentage; // 0.0 to 1.0
+  final double percentage;
 
   _ArcPainter({
     required this.arcColor,
@@ -672,25 +727,19 @@ class _ArcPainter extends CustomPainter {
           ..strokeWidth = 10
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round;
-
     final Paint arcPaint =
         Paint()
           ..color = arcColor
           ..strokeWidth = 10
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round;
-
     final Offset center = Offset(size.width / 2, size.height / 2);
     final double radius = math.min(size.width / 2, size.height / 2) - 5;
-
-    // Draw full background arc
     canvas.drawCircle(center, radius, backgroundPaint);
-
-    // Draw arc based on percentage
     double sweepAngle = 2 * math.pi * percentage;
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2, // Start from top
+      -math.pi / 2,
       sweepAngle,
       false,
       arcPaint,
