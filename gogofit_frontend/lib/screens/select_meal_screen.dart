@@ -1,71 +1,147 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:gogofit_frontend/screens/add_meal_manual_screen.dart'; // Import halaman AddMealManualScreen
-import 'package:gogofit_frontend/screens/food_scanner_screen.dart'; // Import FoodScannerScreen
-import 'package:gogofit_frontend/screens/food_info_screen.dart'; // Import FoodInfoScreen
-import 'package:gogofit_frontend/models/meal_data.dart'; // Import MealEntry
+import 'package:gogofit_frontend/models/food.dart';
+// Import MealEntry tidak lagi diperlukan di file ini
+// import 'package:gogofit_frontend/models/meal_data.dart';
+import 'package:gogofit_frontend/services/api_service.dart';
+import 'package:gogofit_frontend/screens/add_meal_manual_screen.dart';
+import 'package:gogofit_frontend/screens/food_scanner_screen.dart';
 
-class SelectMealScreen extends StatelessWidget {
+// Mengubah widget menjadi StatefulWidget untuk mengelola state
+class SelectMealScreen extends StatefulWidget {
   const SelectMealScreen({super.key});
 
-  // Definisi warna yang digunakan (diubah menjadi final tanpa const Color(...))
-  static final Color headerBackgroundColor = const Color(
-    0xFF014a74,
-  ); // Normal :active (biru lebih gelap)
-  static final Color accentBlueColor = const Color(
-    0xFF015c91,
-  ); // Normal Blue (biru yang sebelumnya untuk header)
+  // Definisi warna tetap di sini agar konsisten dengan gaya asli
+  static final Color headerBackgroundColor = const Color(0xFF014a74);
+  static final Color accentBlueColor = const Color(0xFF015c91);
+  static final Color darkerBlue = const Color(0xFF002033);
 
-  static final Color darkerBlue = const Color(
-    0xFF002033,
-  ); // Darker Blue, tidak digunakan langsung di screen ini
+  @override
+  State<SelectMealScreen> createState() => _SelectMealScreenState();
+}
 
-  final Color whiteWithOpacity70 = const Color.fromARGB(
-    179,
-    255,
-    255,
-    255,
-  ); // (255 * 0.7).round() = 179
-  final Color blackWithOpacity10 = const Color.fromARGB(
-    25,
-    0,
-    0,
-    0,
-  ); // (255 * 0.1).round() = 25
-  final Color blackWithOpacity20 = const Color.fromARGB(
-    51,
-    0,
-    0,
-    0,
-  ); // (255 * 0.2).round() = 51
+class _SelectMealScreenState extends State<SelectMealScreen> {
+  final ApiService _apiService = ApiService();
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  Timer? _debounce;
 
-  // Mengubah ini menjadi final dan menghitung value alpha secara langsung
-  final Color saranDividerActualColor = const Color.fromARGB(
-    76,
-    0,
-    32,
-    51,
-  ); // 30% opacity dari darkerBlue (0, 32, 51)
+  final List<Food> _foods = [];
+  bool _isLoading = false;
+  bool _isFirstLoad = true;
+  String? _errorMessage;
+  int _currentPage = 1;
+  int? _lastPage;
+  bool _isLoadingMore = false;
+
+  // Variabel warna dari kode asli, dipindahkan ke sini dari build method
+  final Color whiteWithOpacity70 = const Color.fromARGB(179, 255, 255, 255);
+  final Color blackWithOpacity10 = const Color.fromARGB(25, 0, 0, 0);
+  final Color blackWithOpacity20 = const Color.fromARGB(51, 0, 0, 0);
+  final Color saranDividerActualColor = const Color.fromARGB(76, 0, 32, 51);
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
+    _fetchFoods(); // Memuat data saran awal
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _scrollController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  /// Fungsi untuk memanggil API foods
+  Future<void> _fetchFoods({bool isNewSearch = false}) async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+      if (isNewSearch) {
+        _foods.clear();
+        _currentPage = 1;
+        _lastPage = null;
+        _isFirstLoad = false;
+      }
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await _apiService.fetchMasterFoods(
+        query: _searchController.text,
+        page: _currentPage,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _foods.addAll(response['foods']);
+        _lastPage = response['meta']['last_page'];
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+      }
+    }
+  }
+
+  /// Fungsi debouncing untuk menunda pencarian
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      // Perbarui judul secara manual saat teks berubah
+      setState(() {});
+      _fetchFoods(isNewSearch: true);
+    });
+  }
+
+  /// Fungsi untuk infinite scrolling
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoadingMore) {
+      if (_lastPage != null && _currentPage < _lastPage!) {
+        setState(() {
+          _isLoadingMore = true;
+          _currentPage++;
+        });
+        _fetchFoods();
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Judul dinamis berdasarkan input pencarian
+    final String listTitle =
+        _searchController.text.isEmpty ? 'Saran' : 'Hasil Pencarian';
+
     return Scaffold(
-      backgroundColor: Colors.white, // Background putih untuk keseluruhan layar
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor:
-            headerBackgroundColor, // Warna app bar menjadi biru yang lebih gelap
+        backgroundColor: SelectMealScreen.headerBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
-            Icons.close,
-            color: Colors.white,
-            size: 28,
-          ), // Ikon silang putih
+          icon: const Icon(Icons.close, color: Colors.white, size: 28),
           onPressed: () {
-            Navigator.pop(context); // Kembali ke halaman sebelumnya
+            Navigator.pop(context);
           },
         ),
         title: const Text(
-          // Menghilangkan Row dan Icon drop down
           'Pilih Santapan',
           style: TextStyle(
             color: Colors.white,
@@ -74,21 +150,18 @@ class SelectMealScreen extends StatelessWidget {
             fontFamily: 'Poppins',
           ),
         ),
-        centerTitle: true, // Pusatkan judul
-        actions: const [
-          SizedBox(width: 48), // Spacer to balance leading icon
-        ],
+        centerTitle: true,
+        actions: const [SizedBox(width: 48)],
       ),
       body: Column(
         children: [
-          // Bagian atas dengan search bar
+          // Bagian header dengan search bar (Struktur asli dipertahankan)
           Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color:
-                  headerBackgroundColor, // Warna latar belakang menjadi biru yang lebih gelap
+              color: SelectMealScreen.headerBackgroundColor,
               borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(30), // Rounded bottom
+                bottom: Radius.circular(30),
               ),
               boxShadow: [
                 BoxShadow(
@@ -100,7 +173,6 @@ class SelectMealScreen extends StatelessWidget {
             ),
             child: Column(
               children: [
-                // Search Bar
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
@@ -115,8 +187,9 @@ class SelectMealScreen extends StatelessWidget {
                     ],
                   ),
                   child: TextField(
+                    controller: _searchController, // Menggunakan controller
                     decoration: InputDecoration(
-                      hintText: 'Cari Makanan',
+                      hintText: 'Cari Nasi Goreng, Ayam Bakar...',
                       hintStyle: TextStyle(
                         color: Colors.grey.shade600,
                         fontFamily: 'Poppins',
@@ -124,9 +197,8 @@ class SelectMealScreen extends StatelessWidget {
                       ),
                       prefixIcon: Icon(
                         Icons.search,
-                        color:
-                            headerBackgroundColor, // Icon search juga mengikuti warna header baru
-                      ), // Icon search juga mengikuti warna header baru
+                        color: SelectMealScreen.headerBackgroundColor,
+                      ),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(vertical: 14),
                       isDense: true,
@@ -134,7 +206,7 @@ class SelectMealScreen extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 16,
-                      color: darkerBlue,
+                      color: SelectMealScreen.darkerBlue,
                     ),
                   ),
                 ),
@@ -142,14 +214,11 @@ class SelectMealScreen extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(
-            height: 16,
-          ), // Jarak antara search bar group dan tombol aksi
-          // Tombol Pindai Makanan & Tambah Cepat (di luar container atas)
+          const SizedBox(height: 16),
+
+          // Tombol Aksi (Struktur asli dipertahankan)
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-            ), // Padding horizontal agar tidak terlalu lebar
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -157,13 +226,8 @@ class SelectMealScreen extends StatelessWidget {
                   context,
                   icon: Icons.camera_alt,
                   label: 'Pindai makanan',
-                  color:
-                      accentBlueColor, // Warna tombol menjadi biru yang lebih terang
+                  color: SelectMealScreen.accentBlueColor,
                   onTap: () {
-                    debugPrint(
-                      'Pindai makanan clicked, navigating to FoodScannerScreen',
-                    );
-                    // NAVIGASI KE FOOD SCANNER SCREEN
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -174,13 +238,10 @@ class SelectMealScreen extends StatelessWidget {
                 ),
                 _buildActionButton(
                   context,
-                  icon: Icons.local_fire_department, // Ikon api
+                  icon: Icons.local_fire_department,
                   label: 'Tambah Cepat',
-                  color:
-                      accentBlueColor, // Warna tombol menjadi biru yang lebih terang
+                  color: SelectMealScreen.accentBlueColor,
                   onTap: () {
-                    debugPrint('Tambah Cepat clicked');
-                    // Navigasi ke AddMealManualScreen
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -193,121 +254,195 @@ class SelectMealScreen extends StatelessWidget {
             ),
           ),
 
-          // Bagian Saran Makanan
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    // Menggunakan Row untuk menambahkan aksen dekoratif
-                    children: [
-                      Expanded(
-                        child: Container(
-                          // Mengganti Divider dengan Container
-                          height: 1.5, // Ketebalan garis
-                          color:
-                              saranDividerActualColor, // Menggunakan static final warna garis Saran
-                          margin: const EdgeInsets.only(
-                            right: 10,
-                          ), // Jarak ke teks
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                        child: Text(
-                          'Saran',
-                          style: TextStyle(
-                            color: darkerBlue,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Container(
-                          // Mengganti Divider dengan Container
-                          height: 1.5, // Ketebalan garis
-                          color:
-                              saranDividerActualColor, // Menggunakan static final warna garis Saran
-                          margin: const EdgeInsets.only(
-                            left: 10,
-                          ), // Jarak ke teks
-                        ),
-                      ),
-                    ],
+          const SizedBox(height: 10),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 1.5,
+                    color: saranDividerActualColor,
+                    margin: const EdgeInsets.only(right: 10),
                   ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: ListView(
-                      children: [
-                        // MODIFIKASI: Menambahkan onTap untuk menavigasi ke FoodInfoScreen
-                        _buildMealSuggestionCard(
-                          context, // Pass context
-                          MealEntry(
-                            name: 'Tahu',
-                            calories: 78.0,
-                            fat: 4.8,
-                            saturatedFat: 0.7, // Dummy
-                            carbs: 1.9,
-                            protein: 8.1,
-                            sugar: 0.5, // Dummy
-                            timestamp: DateTime.now(),
-                            mealType: 'Camilan',
-                          ),
-                          icon: Icons.grain,
-                          // DIUBAH: isComingFromScan = false karena bukan dari scan
-                          isComingFromScan: false,
-                        ),
-                        _buildMealSuggestionCard(
-                          context, // Pass context
-                          MealEntry(
-                            name: 'Ayam Goreng Dada',
-                            calories: 216.0,
-                            fat: 12.0,
-                            saturatedFat: 3.5, // Dummy
-                            carbs: 0.0,
-                            protein: 25.0,
-                            sugar: 0.0, // Dummy
-                            timestamp: DateTime.now(),
-                            mealType: 'Makan Siang',
-                          ),
-                          icon: Icons.fastfood,
-                          // DIUBAH: isComingFromScan = false karena bukan dari scan
-                          isComingFromScan: false,
-                        ),
-                        _buildMealSuggestionCard(
-                          context, // Pass context
-                          MealEntry(
-                            name: 'Telur Dadar',
-                            calories: 154.0,
-                            fat: 11.0,
-                            saturatedFat: 3.0, // Dummy
-                            carbs: 1.0,
-                            protein: 13.0,
-                            sugar: 0.0, // Dummy
-                            timestamp: DateTime.now(),
-                            mealType: 'Sarapan',
-                          ),
-                          icon: Icons.egg,
-                          // DIUBAH: isComingFromScan = false karena bukan dari scan
-                          isComingFromScan: false,
-                        ),
-                        // Tambahkan lebih banyak saran makanan di sini
-                      ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                  child: Text(
+                    listTitle, // Menggunakan judul dinamis
+                    style: TextStyle(
+                      color: SelectMealScreen.darkerBlue,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
                     ),
                   ),
-                ],
-              ),
+                ),
+                Expanded(
+                  child: Container(
+                    height: 1.5,
+                    color: saranDividerActualColor,
+                    margin: const EdgeInsets.only(left: 10),
+                  ),
+                ),
+              ],
             ),
           ),
+
+          Expanded(child: _buildResultsList()),
         ],
       ),
     );
   }
 
+  /// Widget untuk membangun daftar hasil pencarian/saran secara dinamis.
+  Widget _buildResultsList() {
+    if (_isLoading && _foods.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'Gagal memuat data: $_errorMessage',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    if (_foods.isEmpty && !_isFirstLoad) {
+      return const Center(
+        child: Text(
+          'Makanan tidak ditemukan.',
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      itemCount: _foods.length + (_isLoadingMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == _foods.length) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(8.0),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        final food = _foods[index];
+        // Menggunakan widget card baru untuk data dari API
+        return _buildFoodItemCard(food);
+      },
+    );
+  }
+
+  /// Widget card untuk setiap item makanan dari API.
+  Widget _buildFoodItemCard(Food food) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6.0),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
+          children: [
+            // --- KODE BARU DITERAPKAN DI SINI ---
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child:
+                  (food.imageUrl != null)
+                      // Jika URL gambar ada, tampilkan dari internet.
+                      ? Image.network(
+                        food.imageUrl!,
+                        width: 70,
+                        height: 70,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          // Fallback jika URL dari API error
+                          return Container(
+                            width: 70,
+                            height: 70,
+                            color: Colors.grey[200],
+                            child: Icon(
+                              Icons.restaurant,
+                              color: Colors.grey[400],
+                            ),
+                          );
+                        },
+                      )
+                      // Jika URL gambar tidak ada, langsung tampilkan placeholder lokal.
+                      : Container(
+                        width: 70,
+                        height: 70,
+                        color: Colors.grey[200],
+                        child: Icon(Icons.restaurant, color: Colors.grey[400]),
+                      ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    food.name,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: SelectMealScreen.darkerBlue,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${food.calories.toStringAsFixed(0)} kkal • 1 Porsi',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.add_circle,
+                color: SelectMealScreen.headerBackgroundColor,
+                size: 32,
+              ),
+              onPressed: () {
+                // LANGSUNG KIRIM OBJEK 'Food' UTUH.
+                // Ini akan memastikan semua data nutrisi (termasuk karbohidrat, gula, dll.)
+                // ikut terbawa ke layar berikutnya tanpa ada yang hilang.
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) => AddMealManualScreen(
+                          // PENTING: Nama parameter diubah menjadi `initialFoodData`
+                          initialFoodData: food,
+                        ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Widget _buildActionButton dipertahankan seperti aslinya
   Widget _buildActionButton(
     BuildContext context, {
     required IconData icon,
@@ -319,7 +454,7 @@ class SelectMealScreen extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          height: 100, // Tinggi tombol
+          height: 100,
           margin: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: color,
@@ -335,7 +470,7 @@ class SelectMealScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: Colors.white, size: 40), // Ikon lebih besar
+              Icon(icon, color: Colors.white, size: 40),
               const SizedBox(height: 8),
               Text(
                 label,
@@ -346,97 +481,6 @@ class SelectMealScreen extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   fontFamily: 'Poppins',
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // MODIFIKASI: Menerima BuildContext dan MealEntry, serta memiliki onTap
-  // Tambahkan parameter isComingFromScan
-  Widget _buildMealSuggestionCard(
-    BuildContext context,
-    MealEntry food, {
-    IconData? icon,
-    bool isComingFromScan = false, // Parameter BARU: isComingFromScan
-  }) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color:
-          accentBlueColor, // Latar belakang card saran makanan menjadi biru yang lebih terang
-      child: InkWell(
-        onTap: () {
-          debugPrint('Tapped on suggestion: ${food.name}');
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) => FoodInfoScreen(
-                    scannedFood: food,
-                    initialShowDetail:
-                        true, // Saran makanan selalu langsung ke detail
-                    isComingFromScan:
-                        isComingFromScan, // Gunakan parameter yang diterima
-                  ),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              if (icon != null) ...[
-                Icon(icon, color: Colors.white, size: 24),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      food.name, // Gunakan nama dari MealEntry
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                    Text(
-                      '${food.calories.toStringAsFixed(1)} kkal, ${food.carbs.toStringAsFixed(1)} gr Karbohidrat', // Ringkasan dari MealEntry
-                      style: TextStyle(
-                        color: whiteWithOpacity70,
-                        fontSize: 14,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.add_circle,
-                  color: Colors.white,
-                  size: 30,
-                ), // Ikon tambah dengan warna putih
-                onPressed: () {
-                  debugPrint('Add ${food.name} to meal');
-                  // UBAH: Meneruskan data melalui initialMealData (mode tambah baru dengan pre-fill)
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (context) => AddMealManualScreen(
-                            initialMealData: food, // Gunakan initialMealData
-                          ),
-                    ),
-                  );
-                },
               ),
             ],
           ),

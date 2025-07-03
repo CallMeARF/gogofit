@@ -12,7 +12,9 @@ import 'package:gogofit_frontend/screens/edit_exercise_screen.dart'; // PERBAIKA
 import 'package:gogofit_frontend/screens/edit_meal_list_screen.dart';
 import 'package:gogofit_frontend/screens/more_options_screen.dart';
 import 'package:gogofit_frontend/screens/notifications_screen.dart';
+import 'package:gogofit_frontend/screens/profile_detail_screen.dart';
 import 'package:gogofit_frontend/screens/select_meal_screen.dart';
+import 'package:gogofit_frontend/screens/food_scanner_screen.dart';
 import 'package:gogofit_frontend/services/api_service.dart';
 import 'package:intl/intl.dart';
 
@@ -269,7 +271,7 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const MoreOptionsScreen(),
+                builder: (context) => const ProfileDetailScreen(),
               ),
             );
           },
@@ -560,69 +562,30 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
               bottom: 95,
               left: 40,
               right: 40,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SelectMealScreen(),
+              child: Container(
+                // <-- UBAH DARI GestureDetector MENJADI Container
+                height: 40.0,
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: black25Opacity,
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
                     ),
-                  );
-                },
-                child: Container(
-                  height: 40.0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: black25Opacity,
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, color: searchBarIconColor, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          readOnly: true,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SelectMealScreen(),
-                              ),
-                            );
-                          },
-                          decoration: InputDecoration(
-                            hintText: 'Cari Makanan',
-                            hintStyle: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontFamily: 'Poppins',
-                              fontSize: 14,
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          style: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 14,
-                          ),
-                          textAlignVertical: TextAlignVertical.center,
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.camera_alt,
-                          color: searchBarIconColor,
-                          size: 30,
-                        ),
-                        onPressed: () {
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, color: searchBarIconColor, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        readOnly: true,
+                        onTap: () {
+                          // <-- NAVIGASI KE SELECT_MEAL_SCREEN
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -630,11 +593,44 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                             ),
                           );
                         },
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                        decoration: InputDecoration(
+                          hintText: 'Cari Makanan',
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontFamily: 'Poppins',
+                            fontSize: 14,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                        ),
+                        textAlignVertical: TextAlignVertical.center,
                       ),
-                    ],
-                  ),
+                    ),
+                    IconButton(
+                      // <-- NAVIGASI KE FOOD_SCANNER_SCREEN
+                      icon: Icon(
+                        Icons.camera_alt,
+                        color: searchBarIconColor,
+                        size: 30,
+                      ),
+                      onPressed: () {
+                        // Pergi ke FoodScannerScreen saat ikon kamera ditekan
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FoodScannerScreen(),
+                          ),
+                        );
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -758,7 +754,8 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
               IconButton(
                 icon: Icon(Icons.edit, color: darkerBlue70Opacity, size: 20),
                 onPressed: () async {
-                  await Navigator.push(
+                  // Tangkap hasil dari Navigator.pop
+                  final bool? result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder:
@@ -768,7 +765,9 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
                           ),
                     ),
                   );
-                  _fetchDataForSelectedDate();
+                  if (result == true) {
+                    _fetchDataForSelectedDate();
+                  }
                 },
               ),
             ],
@@ -821,15 +820,22 @@ class _DailyLogScreenState extends State<DailyLogScreen> {
             child: TextButton.icon(
               onPressed: () async {
                 debugPrint('Tambah Makanan untuk $mealType');
-                await Navigator.push(
+                // Tangkap hasil dari Navigator.pop
+                final bool? result = await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder:
-                        (context) =>
-                            AddMealManualScreen(initialMealType: mealType),
+                        (context) => AddMealManualScreen(
+                          initialMealType: mealType,
+                          selectedDate:
+                              _selectedDate, // Pastikan meneruskan tanggal saat ini
+                        ),
                   ),
                 );
-                _fetchDataForSelectedDate();
+                // Jika result adalah true, berarti ada perubahan, maka refresh data
+                if (result == true) {
+                  _fetchDataForSelectedDate();
+                }
               },
               icon: Icon(
                 Icons.add_circle_outline,

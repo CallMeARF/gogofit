@@ -1,24 +1,24 @@
 // lib/screens/add_meal_manual_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Import ini untuk FilteringTextInputFormatter
-import '../models/meal_data.dart'; // Mengandung MealEntry dan userMeals
-import '../models/notification_data.dart'; // Mengandung AppNotification dan fungsi notifikasi
-// import 'package:gogofit_frontend/services/notification_service.dart'; // FIX: Pastikan import ini AKTIF
-import 'package:gogofit_frontend/screens/dashboard_screen.dart'; // Import DashboardScreen
-import 'package:gogofit_frontend/services/api_service.dart'; // Import ApiService
+import 'package:flutter/services.dart';
+import '../models/meal_data.dart';
+import '../models/notification_data.dart';
+import '../models/food.dart'; // <-- BARU: Import model Food
+import 'package:gogofit_frontend/screens/dashboard_screen.dart';
+import 'package:gogofit_frontend/services/api_service.dart';
 
 class AddMealManualScreen extends StatefulWidget {
   final String? initialMealType;
-  final MealEntry?
-  mealToEdit; // Digunakan jika benar-benar mengedit entri yang ada
-  final MealEntry?
-  initialMealData; // Digunakan untuk pre-fill data makanan baru (misal dari scanner)
+  final MealEntry? mealToEdit; // Untuk mode edit
+  final Food? initialFoodData; // Untuk pre-fill dari master food
+  final DateTime? selectedDate; // <-- BARU: Tambahkan parameter ini
 
   const AddMealManualScreen({
     super.key,
     this.initialMealType,
     this.mealToEdit,
-    this.initialMealData,
+    this.initialFoodData,
+    this.selectedDate, // <-- BARU: Inisialisasi parameter ini
   });
 
   @override
@@ -60,30 +60,43 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
   final ApiService _apiService = ApiService(); // Inisialisasi ApiService
   bool _isSaving = false; // State untuk loading saat menyimpan
 
-  // HAPUS: Deklarasi lokal notificationService ini karena kita akan menggunakan instance global
-  // final NotificationService notificationService = NotificationService();
-
   @override
   void initState() {
     super.initState();
     _isEditing = widget.mealToEdit != null;
 
-    MealEntry? dataToFill = widget.mealToEdit ?? widget.initialMealData;
-
-    // FIX: Bungkus akses properti dataToFill di dalam pengecekan null
-    if (dataToFill != null) {
-      _mealNameController.text = dataToFill.name;
-      _caloriesController.text = dataToFill.calories.toStringAsFixed(1);
-      _fatController.text = dataToFill.fat.toStringAsFixed(1);
-      _saturatedFatController.text = dataToFill.saturatedFat.toStringAsFixed(1);
-      _carbsController.text = dataToFill.carbs.toStringAsFixed(1);
-      _proteinController.text = dataToFill.protein.toStringAsFixed(1);
-      _sugarController.text = dataToFill.sugar.toStringAsFixed(1);
-      _selectedMealType = dataToFill.mealType;
-    } else {
-      // Jika dataToFill null, pastikan _selectedMealType tetap diinisialisasi
-      _selectedMealType = widget.initialMealType ?? 'Sarapan';
+    // Prioritas 1: Isi form dari data Food (dari SelectMealScreen)
+    if (widget.initialFoodData != null) {
+      final food = widget.initialFoodData!;
+      _mealNameController.text = food.name;
+      _caloriesController.text = food.calories.toStringAsFixed(1);
+      _fatController.text = food.fat.toStringAsFixed(1);
+      _saturatedFatController.text = food.saturatedFat.toStringAsFixed(1);
+      _carbsController.text = food.carbohydrates.toStringAsFixed(
+        1,
+      ); // Gunakan 'carbohydrates' dari model Food
+      _proteinController.text = food.protein.toStringAsFixed(1);
+      _sugarController.text = food.sugar.toStringAsFixed(1);
     }
+    // Prioritas 2: Isi form dari data MealEntry (untuk mode edit)
+    else if (widget.mealToEdit != null) {
+      final meal = widget.mealToEdit!;
+      _mealNameController.text = meal.name;
+      _caloriesController.text = meal.calories.toStringAsFixed(1);
+      _fatController.text = meal.fat.toStringAsFixed(1);
+      _saturatedFatController.text = meal.saturatedFat.toStringAsFixed(1);
+      _carbsController.text = meal.carbs.toStringAsFixed(
+        1,
+      ); // Gunakan 'carbs' dari model MealEntry
+      _proteinController.text = meal.protein.toStringAsFixed(1);
+      _sugarController.text = meal.sugar.toStringAsFixed(1);
+    }
+
+    // Atur tipe santapan default
+    _selectedMealType =
+        widget.initialMealType ?? // Dari argumen
+        widget.mealToEdit?.mealType ?? // Dari mode edit
+        'Sarapan'; // Default jika tidak ada
   }
 
   @override
@@ -154,7 +167,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           _checkAndAddNotifications(updatedMealPayload);
           _showAlertDialog('Sukses', 'Santapan berhasil diperbarui!', () {
             if (!mounted) return;
-            Navigator.pop(context);
+            Navigator.pop(context, true);
           });
         } else {
           _showAlertDialog(
@@ -171,7 +184,8 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
           carbs: carbs,
           protein: protein,
           sugar: sugar,
-          timestamp: DateTime.now(), // Gunakan waktu saat ini
+          timestamp:
+              widget.selectedDate ?? DateTime.now(), // <-- UBAH MENJADI INI
           mealType: _selectedMealType,
         );
 
@@ -448,7 +462,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white, size: 28),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pop(context, true);
           },
         ),
         title: Text(
