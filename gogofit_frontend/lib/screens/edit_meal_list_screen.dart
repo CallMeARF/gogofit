@@ -46,45 +46,68 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
   @override
   void initState() {
     super.initState();
-    _filterMeals();
-    // FIX: Aktifkan listener userMeals kembali
-    userMeals.addListener(_onMealsChanged);
+    // Panggil metode baru untuk ambil data dari API saat inisialisasi
+    _fetchMealsToEdit();
+    // userMeals global tidak lagi digunakan di sini untuk loading data,
+    // sehingga listener tidak diperlukan.
   }
 
   @override
   void dispose() {
     // FIX: Hapus listener saat dispose
-    userMeals.removeListener(_onMealsChanged);
+
     super.dispose();
   }
 
-  // Listener yang akan dipanggil saat userMeals berubah
-  void _onMealsChanged() {
-    debugPrint("userMeals changed in EditMealListScreen, re-filtering meals.");
-    _filterMeals();
-    _checkAndManageNotifications();
-  }
-
-  void _filterMeals() {
+  // BARU: Metode untuk mengambil data MealEntry dari API
+  Future<void> _fetchMealsToEdit() async {
+    if (!mounted) return; // Pastikan widget masih mounted sebelum setState
     setState(() {
-      // Filter berdasarkan mealType dan tanggal yang dipilih
-      _mealsToEdit =
-          userMeals.value
-              .where(
-                (meal) =>
-                    meal.mealType == widget.mealType &&
-                    meal.timestamp.year == widget.selectedDate.year &&
-                    meal.timestamp.month == widget.selectedDate.month &&
-                    meal.timestamp.day == widget.selectedDate.day,
-              )
-              .toList();
+      _isLoading = true; // Tampilkan indikator loading
     });
+    try {
+      // Panggil API untuk mendapatkan semua food logs untuk tanggal yang dipilih
+      final List<MealEntry> allFoodLogsForDate = await _apiService.getFoodLogs(
+        date: widget.selectedDate,
+      );
+
+      // Kemudian filter daftar tersebut berdasarkan mealType di sisi client
+      if (!mounted) return;
+      setState(() {
+        _mealsToEdit =
+            allFoodLogsForDate
+                .where((meal) => meal.mealType == widget.mealType)
+                .toList();
+      });
+      // PENTING: Panggil _checkAndManageNotifications di sini setelah data dimuat
+      // agar logika notifikasi bekerja dengan data terbaru dari backend (dari _mealsToEdit).
+      _checkAndManageNotifications();
+    } catch (e) {
+      debugPrint("Error fetching meals for edit: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat santapan: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false; // Sembunyikan indikator loading
+        });
+      }
+    }
   }
 
   // Logika notifikasi yang disalin dan disesuaikan dari AddMealManualScreen
   void _checkAndManageNotifications() async {
-    final double totalCalories = calculateTotalCalories();
-    final double totalSugar = calculateTotalSugar();
+    // Pastikan perhitungan ini menggunakan _mealsToEdit yang sudah di-fetch dari API
+    final double totalCalories = _mealsToEdit.fold(
+      0.0,
+      (sum, meal) => sum + meal.calories,
+    );
+    final double totalSugar = _mealsToEdit.fold(
+      0.0,
+      (sum, meal) => sum + meal.sugar,
+    );
 
     double netCaloriesForNotifications =
         totalCalories - _burnedCaloriesFromExercise;
@@ -329,21 +352,16 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
                   _isLoading = true;
                 }); // Tampilkan loading
                 try {
-                  // Panggil API deleteFoodLog
-                  // FIX (Ln 321): Tambahkan null-check operator (!) atau pastikan meal.id tidak null
+                  // Panggil API deleteFoodLog menggunakan ID unik dari meal
                   final response = await _apiService.deleteFoodLog(meal.id!);
 
                   if (!mounted) return;
                   if (response['success']) {
-                    // FIX (Ln 327): Tambahkan null-check operator (!) atau pastikan meal.id tidak null
-                    deleteMealEntry(
-                      meal.id!,
-                    ); // Ini memicu listener _onMealsChanged
-                    _checkAndManageNotifications(); // Perbarui notifikasi setelah hapus
+                    // Setelah berhasil dihapus dari BE, muat ulang data dari API
+                    _fetchMealsToEdit(); // Ini akan memicu refresh UI
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('${meal.name} berhasil dihapus.')),
                     );
-                    // Tidak perlu pop dari EditMealListScreen, _onMealsChanged akan me-rebuild UI ini
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -364,7 +382,6 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
                     ),
                   );
                 } finally {
-                  // FIX (Ln 354): Hapus 'return;' dari blok finally
                   if (mounted) {
                     setState(() {
                       _isLoading = false;
@@ -379,19 +396,28 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
     );
   }
 
+  // MODIFIKASI: Metode untuk mengedit MealEntry spesifik
   void _editSpecificMeal(MealEntry meal) async {
-    await Navigator.push(
+    // Kirim objek meal yang akan diedit langsung ke AddMealManualScreen
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder:
             (context) => AddMealManualScreen(
-              mealToEdit: meal,
-            ), // Kirim objek meal untuk diedit
+              initialMealType:
+                  meal.mealType, // Teruskan mealType untuk konsistensi
+              mealToEdit: meal, // Kirim objek MealEntry lengkap untuk diedit
+              // Gunakan 'timestamp' yang ada di model MealEntry Anda
+              // dan teruskan sebagai 'selectedDate' ke AddMealManualScreen
+              selectedDate: meal.timestamp,
+            ),
       ),
     );
-    // Setelah kembali dari AddMealManualScreen (setelah edit), _onMealsChanged akan memicu refresh
-    // _filterMeals(); // Tidak perlu panggil manual karena listener _onMealsChanged akan melakukannya
-    // _checkAndManageNotifications(); // Tidak perlu panggil manual karena listener _onMealsChanged akan melakukannya
+    // Setelah kembali dari AddMealManualScreen (setelah add/edit), muat ulang data dari API
+    if (result == true) {
+      // Asumsi AddMealManualScreen mengembalikan true jika ada perubahan
+      _fetchMealsToEdit(); // Panggil ulang untuk merefresh data dari API
+    }
   }
 
   @override
@@ -414,7 +440,7 @@ class _EditMealListScreenState extends State<EditMealListScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pop(context, true);
           },
         ),
       ),

@@ -1,6 +1,7 @@
 // lib/screens/food_info_screen.dart
 import 'package:flutter/material.dart';
 import 'package:gogofit_frontend/models/meal_data.dart'; // Import MealEntry
+import 'package:gogofit_frontend/models/food.dart'; // <-- BARU: Import model Food untuk konversi
 import 'package:gogofit_frontend/screens/add_meal_manual_screen.dart'; // Import AddMealManualScreen
 
 class FoodInfoScreen extends StatefulWidget {
@@ -293,13 +294,29 @@ class _FoodInfoScreenState extends State<FoodInfoScreen> {
                 debugPrint(
                   'Tambahkan ${food.name} ke Log Makanan. Mengarahkan ke AddMealManualScreen.',
                 );
+
+                // BARU: Konversi objek MealEntry ke Food sebelum navigasi
+                final foodForNextScreen = Food(
+                  // --- FIX: Melakukan casting eksplisit dari Object? ke int ---
+                  id: (food.id as int?) ?? 0,
+                  name: food.name,
+                  calories: food.calories,
+                  protein: food.protein,
+                  carbohydrates:
+                      food.carbs, // Mapping dari 'carbs' ke 'carbohydrates'
+                  fat: food.fat,
+                  saturatedFat: food.saturatedFat,
+                  sugar: food.sugar,
+                  imageUrl:
+                      null, // imageUrl tidak tersedia di MealEntry, jadi kita set null
+                );
+
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
                     builder:
                         (context) => AddMealManualScreen(
-                          initialMealData:
-                              food, // Meneruskan data ke initialMealData
+                          initialFoodData: foodForNextScreen,
                         ),
                   ),
                 );

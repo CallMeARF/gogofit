@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../models/user_profile_data.dart';
 import '../models/meal_data.dart';
 import '../models/exercise_log.dart';
+import '../models/food.dart';
 import '../exceptions/unauthorized_exception.dart';
 import './auth_token_manager.dart'; // <-- BARU: Impor AuthTokenManager yang sudah dipisah
 import '../screens/auth/login_screen.dart'; // <-- Import LoginScreen untuk navigasi
@@ -681,6 +682,53 @@ class ApiService {
         'success': false,
         'message': 'Terjadi kesalahan: ${e.toString()}',
       };
+    }
+  }
+
+  // --- API UNTUK MASTER FOODS ---
+  /// Mengambil daftar makanan master, dengan opsi pencarian dan paginasi.
+  /// Mengembalikan Map yang berisi list of foods dan metadata paginasi.
+  Future<Map<String, dynamic>> fetchMasterFoods({
+    String? query,
+    int page = 1,
+  }) async {
+    // Endpoint sudah mendukung paginasi dari controller Laravel
+    String endpoint = 'foods?page=$page';
+    if (query != null && query.isNotEmpty) {
+      endpoint +=
+          '&search=${Uri.encodeComponent(query)}'; // Gunakan encodeComponent untuk keamanan
+    }
+
+    // --- KODE BARU DITERAPKAN DI SINI ---
+    try {
+      // Panggil metode 'get' internal yang sudah handle otentikasi
+      final response = await get(endpoint);
+      final responseBody = jsonDecode(response.body);
+
+      // PERBAIKAN: Akses objek paginasi di dalam key 'data' utama
+      final Map<String, dynamic> paginatedData = responseBody['data'];
+
+      // Parsing list makanan dari key 'data' di dalam objek paginasi
+      final List<dynamic> foodListJson = paginatedData['data'] as List;
+      final List<Food> foods =
+          foodListJson.map((json) => Food.fromJson(json)).toList();
+
+      // Ambil semua data paginasi (seperti current_page, last_page)
+      // dengan membuat salinan objek paginasi tanpa list datanya.
+      final Map<String, dynamic> meta = Map.from(paginatedData)..remove('data');
+
+      // Kembalikan hasil dalam format yang terstruktur dan type-safe
+      return {
+        'foods': foods, // Berupa List<Food>
+        'meta': meta, // Berupa Map<String, dynamic> yang berisi info paginasi
+      };
+    } on UnauthorizedException {
+      // _sendRequest sudah menangani redirect, cukup kembalikan data kosong atau rethrow
+      rethrow;
+    } catch (e) {
+      debugPrint('Error fetching master foods: $e');
+      // Lempar kembali error agar UI bisa menanganinya (misal: menampilkan pesan error)
+      rethrow;
     }
   }
 

@@ -4,77 +4,90 @@ namespace App\Http\Controllers;
 
 use App\Models\Food;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class FoodController extends Controller
 {
-    public function index()
+    /**
+     * Menampilkan daftar makanan dengan fitur pencarian dan paginasi.
+     */
+    public function index(Request $request)
     {
-        return Food::all();
+        // Ambil query pencarian dari request
+        $searchQuery = $request->query('search');
+
+        $foods = Food::query()
+            ->when($searchQuery, function ($query, $search) {
+                // Lakukan pencarian jika ada query 'search'
+                return $query->where('name', 'like', "%{$search}%");
+            })
+            ->paginate(10); // Terapkan paginasi, 10 item per halaman
+
+        return response()->json(['success' => true, 'data' => $foods]);
     }
 
+    /**
+     * Menyimpan makanan baru ke dalam database.
+     */
     public function store(Request $request)
     {
-        try {
-            // Validasi input termasuk kolom baru
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'calories' => 'required|integer',
-                'sugar' => 'required|integer',
-                'protein' => 'nullable|numeric', // Tambahkan validasi untuk protein
-                'carbohydrates' => 'nullable|numeric', // Tambahkan validasi untuk carbohydrates
-                'fat' => 'nullable|numeric', // Tambahkan validasi untuk fat
-                'image' => 'nullable|string', // Tambahkan validasi untuk image
-            ]);
+        // Validasi input disederhanakan, Laravel akan handle response error otomatis
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255|unique:foods,name',
+            'calories' => 'required|numeric|min:0',
+            'sugar' => 'required|numeric|min:0',
+            'protein' => 'required|numeric|min:0',
+            'carbohydrates' => 'required|numeric|min:0',
+            'fat' => 'required|numeric|min:0',
+            'saturated_fat' => 'required|numeric|min:0',
+            'image' => 'nullable|string', // Untuk saat ini kita simpan URL sebagai string
+        ]);
 
-            // Buat entri makanan baru
-            $food = Food::create($validated);
+        $food = Food::create($validatedData);
 
-            // Kembalikan respons sukses
-            return response()->json($food, 201);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            // Tangani error validasi
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            // Tangani error lainnya
-            return response()->json([
-                'message' => 'An error occurred while creating the food entry',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return response()->json(['success' => true, 'message' => 'Makanan berhasil ditambahkan.', 'data' => $food], 201);
     }
 
-
-    public function show($id)
+    /**
+     * Menampilkan detail satu makanan.
+     * Menggunakan Route Model Binding.
+     */
+    public function show(Food $food)
     {
-        return Food::findOrFail($id);
+        return response()->json(['success' => true, 'data' => $food]);
     }
 
-    public function update(Request $request, $id)
+    /**
+     * Memperbarui data makanan yang ada.
+     * Menggunakan Route Model Binding.
+     */
+    public function update(Request $request, Food $food)
     {
-        $food = Food::findOrFail($id);
-        
-        // Validasi input untuk update
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'calories' => 'sometimes|required|integer',
-            'sugar' => 'sometimes|required|integer',
-            'protein' => 'nullable|numeric',
-            'carbohydrates' => 'nullable|numeric',
-            'fat' => 'nullable|numeric',
+        $validatedData = $request->validate([
+            // 'sometimes' berarti validasi hanya dilakukan jika field tersebut ada di request
+            'name' => 'sometimes|required|string|max:255|unique:foods,name,' . $food->id,
+            'calories' => 'sometimes|required|numeric|min:0',
+            'sugar' => 'sometimes|required|numeric|min:0',
+            'protein' => 'sometimes|required|numeric|min:0',
+            'carbohydrates' => 'sometimes|required|numeric|min:0',
+            'fat' => 'sometimes|required|numeric|min:0',
+            'saturated_fat' => 'sometimes|required|numeric|min:0',
             'image' => 'nullable|string',
         ]);
 
-        // Update entri makanan
-        $food->update($validated);
-        return response()->json($food, 200);
+        $food->update($validatedData);
+
+        return response()->json(['success' => true, 'message' => 'Makanan berhasil diperbarui.', 'data' => $food]);
     }
 
-    public function destroy($id)
+    /**
+     * Menghapus data makanan dari database.
+     * Menggunakan Route Model Binding.
+     */
+    public function destroy(Food $food)
     {
-        Food::destroy($id);
-        return response()->json(null, 204);
+        $food->delete();
+        
+        return response()->json(['success' => true, 'message' => 'Makanan berhasil dihapus.']);
     }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gogofit_frontend/screens/dashboard_screen.dart';
 import 'package:gogofit_frontend/screens/daily_log_screen.dart';
 import 'package:gogofit_frontend/screens/select_meal_screen.dart';
+import 'package:gogofit_frontend/screens/food_scanner_screen.dart';
 import 'package:gogofit_frontend/screens/notifications_screen.dart';
 import 'package:gogofit_frontend/models/notification_data.dart';
 import 'package:gogofit_frontend/screens/profile_detail_screen.dart';
@@ -438,62 +439,30 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
               bottom: 95,
               left: 40,
               right: 40,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SelectMealScreen(),
+              child: Container(
+                // <-- UBAH DARI GestureDetector MENJADI Container
+                height: 40.0,
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: black25Opacity,
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
                     ),
-                  );
-                },
-                child: Container(
-                  height: 40.0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color:
-                            black25Opacity, // Variabel ini sekarang terdefinisi
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, color: searchBarIconColor, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          readOnly: true,
-                          decoration: InputDecoration(
-                            hintText: 'Cari Makanan',
-                            hintStyle: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontFamily: 'Poppins',
-                              fontSize: 14,
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          style: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 14,
-                          ),
-                          textAlignVertical: TextAlignVertical.center,
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.camera_alt,
-                          color: searchBarIconColor,
-                          size: 30,
-                        ),
-                        onPressed: () {
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, color: searchBarIconColor, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        readOnly: true,
+                        onTap: () {
+                          // <-- NAVIGASI KE SELECT_MEAL_SCREEN
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -501,11 +470,44 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
                             ),
                           );
                         },
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                        decoration: InputDecoration(
+                          hintText: 'Cari Makanan',
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontFamily: 'Poppins',
+                            fontSize: 14,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                        ),
+                        textAlignVertical: TextAlignVertical.center,
                       ),
-                    ],
-                  ),
+                    ),
+                    IconButton(
+                      // <-- NAVIGASI KE FOOD_SCANNER_SCREEN
+                      icon: Icon(
+                        Icons.camera_alt,
+                        color: searchBarIconColor,
+                        size: 30,
+                      ),
+                      onPressed: () {
+                        // Pergi ke FoodScannerScreen saat ikon kamera ditekan
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FoodScannerScreen(),
+                          ),
+                        );
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
                 ),
               ),
             ),
