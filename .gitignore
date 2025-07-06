@@ -14,6 +14,11 @@ node_modules/
 /gogofit_frontend/.packages
 /gogofit_frontend/.flutter-plugins
 /gogofit_frontend/.flutter-plugins-dependencies
+
+# Direktori build spesifik platform yang dibuat otomatis
+/gogofit_frontend/windows/flutter/ephemeral/
+/gogofit_frontend/macos/Flutter/ephemeral/
+
 # File spesifik IDE
 /gogofit_frontend/*.iml
 /gogofit_frontend/.idea/
