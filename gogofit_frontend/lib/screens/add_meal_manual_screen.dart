@@ -12,6 +12,7 @@ class AddMealManualScreen extends StatefulWidget {
   final MealEntry? mealToEdit; // Untuk mode edit
   final Food? initialFoodData; // Untuk pre-fill dari master food
   final DateTime? selectedDate; // <-- BARU: Tambahkan parameter ini
+  final String? message;
 
   const AddMealManualScreen({
     super.key,
@@ -19,6 +20,7 @@ class AddMealManualScreen extends StatefulWidget {
     this.mealToEdit,
     this.initialFoodData,
     this.selectedDate, // <-- BARU: Inisialisasi parameter ini
+    this.message,
   });
 
   @override
@@ -37,6 +39,7 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
 
   late String _selectedMealType;
   late bool _isEditing;
+  late String _displayMessage;
 
   final Color headerBackgroundColor = const Color(0xFF014a74);
   final Color accentBlueColor = const Color(0xFF015c91);
@@ -64,6 +67,10 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
   void initState() {
     super.initState();
     _isEditing = widget.mealToEdit != null;
+
+    // Inisialisasi _displayMessage
+    _displayMessage =
+        widget.message ?? ''; // Gunakan pesan dari widget atau string kosong
 
     // Prioritas 1: Isi form dari data Food (dari SelectMealScreen)
     if (widget.initialFoodData != null) {
@@ -486,6 +493,38 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // BARU: Tampilkan pesan jika ada
+                    if (_displayMessage.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20.0),
+                        child: Container(
+                          padding: const EdgeInsets.all(12.0),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.shade400),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.orange.shade700,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _displayMessage,
+                                  style: TextStyle(
+                                    color: Colors.orange.shade800,
+                                    fontSize: 14,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     // Dropdown Santapan
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -34,13 +34,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/profile', [AuthController::class, 'getProfile']);
     Route::post('/update-profile', [AuthController::class, 'updateProfile']);
 
-    // Rute untuk makanan (Foods master list - jika digunakan)
+    // Rute untuk makanan (Foods master list)
+    // Rute ini akan menangani GET /api/foods?query={nama_makanan} dari Flutter
+    // dan juga GET /api/foods?search={keyword}&page={num} untuk daftar paginasi.
     Route::apiResource('/foods', FoodController::class);
     
     // Rute untuk log makanan
     Route::apiResource('/food-logs', FoodLogController::class);
 
-    // PERBAIKAN 2: Tambahkan rute untuk log latihan
+    // Tambahkan rute untuk log latihan
     Route::apiResource('/exercise-logs', ExerciseLogController::class);
 
     // Rute untuk notifikasi

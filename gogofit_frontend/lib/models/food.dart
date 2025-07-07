@@ -36,6 +36,8 @@ class Food {
       fat: (json['fat'] as num).toDouble(),
       saturatedFat: (json['saturated_fat'] as num).toDouble(),
       sugar: (json['sugar'] as num).toDouble(),
+      // Pastikan nama field 'image' di sini sesuai dengan nama field di JSON dari backend Anda.
+      // Jika backend mengirim 'image_url', maka ganti menjadi json['image_url']
       imageUrl: json['image'],
     );
   }

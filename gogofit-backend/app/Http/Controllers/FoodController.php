@@ -10,21 +10,32 @@ class FoodController extends Controller
 {
     /**
      * Menampilkan daftar makanan dengan fitur pencarian dan paginasi.
+     * Sekarang mendukung parameter 'query' untuk pencarian spesifik (dari ML).
      */
     public function index(Request $request)
     {
         // Ambil query pencarian dari request
-        $searchQuery = $request->query('search');
+        $searchQuery = $request->query('search'); // Untuk pencarian umum dengan paginasi
+        $mlQuery = $request->query('query');     // BARU: Untuk pencarian dari hasil ML
 
-        $foods = Food::query()
-            ->when($searchQuery, function ($query, $search) {
-                // Lakukan pencarian jika ada query 'search'
+        $foods = Food::query();
+
+        if ($mlQuery) {
+            // Jika ada parameter 'query' (dari hasil ML), lakukan pencarian spesifik
+            $foods->where('name', 'like', "%{$mlQuery}%");
+            // Tidak perlu paginasi untuk hasil ML, kembalikan langsung list
+            return response()->json(['success' => true, 'data' => $foods->get()]);
+        } else {
+            // Jika tidak ada 'query' ML, gunakan 'search' dan paginasi seperti biasa
+            $foods->when($searchQuery, function ($query, $search) {
                 return $query->where('name', 'like', "%{$search}%");
-            })
-            ->paginate(10); // Terapkan paginasi, 10 item per halaman
+            });
 
-        return response()->json(['success' => true, 'data' => $foods]);
+            $paginatedFoods = $foods->paginate(10); // Terapkan paginasi, 10 item per halaman
+            return response()->json(['success' => true, 'data' => $paginatedFoods]);
+        }
     }
+
 
     /**
      * Menyimpan makanan baru ke dalam database.

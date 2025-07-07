@@ -1,19 +1,17 @@
 // lib/screens/food_info_screen.dart
 import 'package:flutter/material.dart';
-import 'package:gogofit_frontend/models/meal_data.dart'; // Import MealEntry
-import 'package:gogofit_frontend/models/food.dart'; // <-- BARU: Import model Food untuk konversi
+import 'dart:io';
+import 'package:gogofit_frontend/models/food.dart'; // Import model Food
 import 'package:gogofit_frontend/screens/add_meal_manual_screen.dart'; // Import AddMealManualScreen
 
 class FoodInfoScreen extends StatefulWidget {
-  final MealEntry scannedFood;
-  final bool initialShowDetail;
-  final bool isComingFromScan;
+  final Food scannedFood;
+  final String? scannedImagePath;
 
   const FoodInfoScreen({
     super.key,
     required this.scannedFood,
-    this.initialShowDetail = true,
-    this.isComingFromScan = false,
+    this.scannedImagePath,
   });
 
   @override
@@ -27,58 +25,9 @@ class _FoodInfoScreenState extends State<FoodInfoScreen> {
   final Color white70Opacity = const Color.fromARGB(179, 255, 255, 255);
   final Color primaryBlueNormal = const Color(0xFF015c91);
 
-  // Dummy data untuk makanan terkait
-  final List<MealEntry> relatedFoods = [
-    MealEntry(
-      name: 'Ayam Geprek',
-      calories: 320.0,
-      fat: 25.0,
-      saturatedFat: 8.0, // Dummy
-      carbs: 10.0,
-      protein: 20.0,
-      sugar: 0.5,
-      timestamp: DateTime.now(),
-      mealType: 'Makan Siang', // Set default mealType untuk dummy data
-    ),
-    MealEntry(
-      name: 'Timun',
-      calories: 15.0,
-      fat: 0.1,
-      saturatedFat: 0.0, // Dummy
-      carbs: 3.6,
-      protein: 0.7,
-      sugar: 1.7,
-      timestamp: DateTime.now(),
-      mealType: 'Camilan', // Set default mealType untuk dummy data
-    ),
-    MealEntry(
-      name: 'Nasi Putih',
-      calories: 209.0,
-      fat: 0.4,
-      saturatedFat: 0.1, // Dummy
-      carbs: 45.0,
-      protein: 4.3,
-      sugar: 0.1,
-      timestamp: DateTime.now(),
-      mealType: 'Makan Siang', // Set default mealType untuk dummy data
-    ),
-  ];
-
-  bool _showDetail = false;
-  MealEntry? _currentFoodDetail;
-
   @override
   void initState() {
     super.initState();
-    _currentFoodDetail = widget.scannedFood;
-    _showDetail = widget.initialShowDetail;
-  }
-
-  void _showRelatedFoodDetail(MealEntry food) {
-    setState(() {
-      _currentFoodDetail = food;
-      _showDetail = true;
-    });
   }
 
   @override
@@ -91,21 +40,13 @@ class _FoodInfoScreenState extends State<FoodInfoScreen> {
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white, size: 28),
           onPressed: () {
-            if (widget.isComingFromScan && _showDetail) {
-              setState(() {
-                _showDetail =
-                    false; // Kembali ke daftar terkait (hasil pemindaian)
-                _currentFoodDetail =
-                    null; // Reset detail saat kembali ke daftar
-              });
-            } else {
-              Navigator.pop(context); // Keluar dari halaman
-            }
+            Navigator.pop(context, false); // Mengembalikan false
           },
         ),
-        title: Text(
-          _showDetail ? 'Informasi Makanan' : 'Hasil Pemindaian',
-          style: const TextStyle(
+        title: const Text(
+          // Ubah menjadi const Text karena judul selalu "Informasi Makanan"
+          'Informasi Makanan', // Selalu tampilkan ini
+          style: TextStyle(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -115,109 +56,13 @@ class _FoodInfoScreenState extends State<FoodInfoScreen> {
         centerTitle: true,
         actions: const [SizedBox(width: 48)],
       ),
-      body:
-          _showDetail
-              ? _buildFoodDetailView(_currentFoodDetail!)
-              : _buildRelatedFoodListView(),
+      // PERBAIKAN: Langsung panggil _buildFoodDetailView
+      body: _buildFoodDetailView(widget.scannedFood),
     );
   }
 
-  Widget _buildRelatedFoodListView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (widget
-            .scannedFood
-            .name
-            .isNotEmpty) // Cek ini agar gambar hanya muncul jika ada makanan
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: Image.asset(
-                    'assets/images/mock_scanned_food.png', // Background gambar Anda
-                    width: double.infinity,
-                    height: 200,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Makanan Terkait:',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: darkerBlue,
-                    fontFamily: 'Poppins',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            itemCount: relatedFoods.length,
-            itemBuilder: (context, index) {
-              final food = relatedFoods[index];
-              return _buildRelatedFoodCard(food);
-            },
-          ),
-        ),
-        // Tombol "Lihat Lebih Lengkap" telah dihapus sepenuhnya.
-      ],
-    );
-  }
-
-  Widget _buildRelatedFoodCard(MealEntry food) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: accentBlueColor,
-      child: InkWell(
-        onTap: () => _showRelatedFoodDetail(food),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      food.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                    Text(
-                      '${food.calories.toStringAsFixed(1)} kkal, ${food.carbs.toStringAsFixed(1)} gr Karbohidrat',
-                      style: TextStyle(
-                        color: white70Opacity,
-                        fontSize: 14,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFoodDetailView(MealEntry food) {
+  // PERBAIKAN: Ubah tipe parameter food menjadi Food
+  Widget _buildFoodDetailView(Food food) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -225,12 +70,45 @@ class _FoodInfoScreenState extends State<FoodInfoScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(15),
-            child: Image.asset(
-              'assets/images/mock_scanned_food.png',
-              width: double.infinity,
-              height: 200,
-              fit: BoxFit.cover,
-            ),
+            child:
+                widget.scannedImagePath != null &&
+                        widget.scannedImagePath!.isNotEmpty
+                    ? Image.file(
+                      // BARU: Tampilkan gambar dari path yang dipindai
+                      File(widget.scannedImagePath!),
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (context, error, stackTrace) => Image.asset(
+                            'assets/images/mock_scanned_food.png', // Fallback jika file tidak dapat dimuat
+                            width: double.infinity,
+                            height: 200,
+                            fit: BoxFit.cover,
+                          ),
+                    )
+                    : (food.imageUrl != null && food.imageUrl!.isNotEmpty
+                        ? Image.network(
+                          // Fallback ke gambar dari backend
+                          food.imageUrl!,
+                          width: double.infinity,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (context, error, stackTrace) => Image.asset(
+                                'assets/images/mock_scanned_food.png', // Fallback jika URL gambar error
+                                width: double.infinity,
+                                height: 200,
+                                fit: BoxFit.cover,
+                              ),
+                        )
+                        : Image.asset(
+                          // Fallback ke placeholder default
+                          'assets/images/mock_scanned_food.png',
+                          width: double.infinity,
+                          height: 200,
+                          fit: BoxFit.cover,
+                        )),
           ),
           const SizedBox(height: 16),
           Text(
@@ -272,14 +150,17 @@ class _FoodInfoScreenState extends State<FoodInfoScreen> {
                 ),
                 _buildNutritionRow(
                   'Lemak jenuh',
+                  // PERBAIKAN: Gunakan food.saturatedFat
                   '${food.saturatedFat.toStringAsFixed(1)} gram',
                 ),
                 _buildNutritionRow(
                   'Karbohidrat',
-                  '${food.carbs.toStringAsFixed(1)} gram',
+                  // PERBAIKAN: Gunakan food.carbohydrates
+                  '${food.carbohydrates.toStringAsFixed(1)} gram',
                 ),
                 _buildNutritionRow(
                   'Gula',
+                  // PERBAIKAN: Gunakan food.sugar
                   '${food.sugar.toStringAsFixed(1)} gram',
                 ),
               ],
@@ -295,28 +176,14 @@ class _FoodInfoScreenState extends State<FoodInfoScreen> {
                   'Tambahkan ${food.name} ke Log Makanan. Mengarahkan ke AddMealManualScreen.',
                 );
 
-                // BARU: Konversi objek MealEntry ke Food sebelum navigasi
-                final foodForNextScreen = Food(
-                  // --- FIX: Melakukan casting eksplisit dari Object? ke int ---
-                  id: (food.id as int?) ?? 0,
-                  name: food.name,
-                  calories: food.calories,
-                  protein: food.protein,
-                  carbohydrates:
-                      food.carbs, // Mapping dari 'carbs' ke 'carbohydrates'
-                  fat: food.fat,
-                  saturatedFat: food.saturatedFat,
-                  sugar: food.sugar,
-                  imageUrl:
-                      null, // imageUrl tidak tersedia di MealEntry, jadi kita set null
-                );
-
+                // Data `food` sudah bertipe `Food`, jadi tidak perlu konversi lagi.
+                // Cukup teruskan `food` langsung ke `AddMealManualScreen`.
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
                     builder:
                         (context) => AddMealManualScreen(
-                          initialFoodData: foodForNextScreen,
+                          initialFoodData: food, // Langsung gunakan objek food
                         ),
                   ),
                 );
