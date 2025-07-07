@@ -1,5 +1,3 @@
-# Created by Gemini - Rekomendasi untuk proyek Gogofit
-
 # Dependencies & Secrets
 # Aturan umum untuk folder dependensi dan file environment
 node_modules/
@@ -15,9 +13,13 @@ node_modules/
 /gogofit_frontend/.flutter-plugins
 /gogofit_frontend/.flutter-plugins-dependencies
 
-# Direktori build spesifik platform yang dibuat otomatis
-/gogofit_frontend/windows/flutter/ephemeral/
-/gogofit_frontend/macos/Flutter/ephemeral/
+# Mengabaikan seluruh direktori platform-specific Flutter
+# Flutter akan membuatnya ulang secara otomatis sesuai kebutuhan.
+/gogofit_frontend/windows/
+/gogofit_frontend/linux/
+/gogofit_frontend/macos/
+/gogofit_frontend/ios/
+/gogofit_frontend/android/
 
 # File spesifik IDE
 /gogofit_frontend/*.iml
