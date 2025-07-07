@@ -29,9 +29,23 @@ class ApiService {
     String method,
     String endpoint, {
     Map<String, dynamic>? body,
+    Map<String, dynamic>? queryParams, // BARU: Tambahkan parameter ini
     bool requireAuth = true, // Defaultnya memerlukan autentikasi
   }) async {
-    final uri = Uri.parse('$apiBaseUrl/$endpoint');
+    // Perbaikan: Untuk GET request dengan query parameter, kita perlu membangun Uri dengan queryParameters
+    Uri uri;
+    // Perbaikan: Gunakan queryParams saat membangun URI untuk GET requests
+    if (method.toUpperCase() == 'GET' &&
+        queryParams != null &&
+        queryParams.isNotEmpty) {
+      uri = Uri.parse('$apiBaseUrl/$endpoint').replace(
+        queryParameters: queryParams.map(
+          (key, value) => MapEntry(key, value.toString()),
+        ),
+      );
+    } else {
+      uri = Uri.parse('$apiBaseUrl/$endpoint');
+    }
 
     // Ambil token hanya jika request memerlukan autentikasi
     String? token;
@@ -144,8 +158,14 @@ class ApiService {
 
   // Metode publik yang memanggil _sendRequest
   // Default: requireAuth = true
-  Future<http.Response> get(String endpoint) async =>
-      _sendRequest('GET', endpoint);
+  Future<http.Response> get(
+    String endpoint, {
+    Map<String, dynamic>? queryParams,
+  }) async => _sendRequest(
+    'GET',
+    endpoint,
+    queryParams: queryParams,
+  ); // Perbaikan di sini
   Future<http.Response> post(
     String endpoint,
     Map<String, dynamic> body, {
@@ -692,23 +712,23 @@ class ApiService {
     String? query,
     int page = 1,
   }) async {
-    // Endpoint sudah mendukung paginasi dari controller Laravel
-    String endpoint = 'foods?page=$page';
+    String endpoint = 'foods';
+    Map<String, dynamic> queryParams = {'page': page};
     if (query != null && query.isNotEmpty) {
-      endpoint +=
-          '&search=${Uri.encodeComponent(query)}'; // Gunakan encodeComponent untuk keamanan
+      queryParams['search'] =
+          query; // Tidak perlu encodeComponent di sini, karena Uri.parse akan mengurusnya
     }
 
     // --- KODE BARU DITERAPKAN DI SINI ---
     try {
-      // Panggil metode 'get' internal yang sudah handle otentikasi
-      final response = await get(endpoint);
+      final response = await get(
+        endpoint,
+        queryParams: queryParams,
+      ); // Gunakan metode get() yang baru
       final responseBody = jsonDecode(response.body);
 
-      // PERBAIKAN: Akses objek paginasi di dalam key 'data' utama
       final Map<String, dynamic> paginatedData = responseBody['data'];
 
-      // Parsing list makanan dari key 'data' di dalam objek paginasi
       final List<dynamic> foodListJson = paginatedData['data'] as List;
       final List<Food> foods =
           foodListJson.map((json) => Food.fromJson(json)).toList();
@@ -732,6 +752,54 @@ class ApiService {
     }
   }
 
+  // Metode untuk mendapatkan makanan berdasarkan nama (dari hasil ML)
+  Future<List<Food>> getFoods({String? query}) async {
+    String endpoint = 'foods';
+    Map<String, dynamic> queryParams = {};
+    if (query != null && query.isNotEmpty) {
+      queryParams['query'] = query;
+    }
+
+    try {
+      final response = await get(endpoint, queryParams: queryParams);
+      final responseBody = jsonDecode(response.body);
+
+      List<dynamic> foodListJson = [];
+
+      if (responseBody is Map && responseBody.containsKey('data')) {
+        // Jika respons adalah objek paginasi Laravel atau respons sukses dengan 'data'
+        final dynamic dataContent = responseBody['data'];
+        if (dataContent is List) {
+          // Jika 'data' langsung berupa list (misalnya, jika tidak ada paginasi)
+          foodListJson = dataContent;
+        } else if (dataContent is Map &&
+            dataContent.containsKey('data') &&
+            dataContent['data'] is List) {
+          // Jika 'data' adalah objek paginasi dengan 'data' di dalamnya berupa list
+          foodListJson = dataContent['data'];
+        } else {
+          debugPrint(
+            'Unexpected data content structure in getFoods: $dataContent',
+          );
+          return []; // Kembalikan list kosong jika struktur tidak dikenal
+        }
+      } else if (responseBody is List) {
+        // Jika respons adalah array langsung (tidak dibungkus objek)
+        foodListJson = responseBody;
+      } else {
+        debugPrint('Unexpected response structure for getFoods: $responseBody');
+        return [];
+      }
+
+      return foodListJson.map((json) => Food.fromJson(json)).toList();
+    } on UnauthorizedException {
+      rethrow;
+    } catch (e) {
+      debugPrint('Error fetching foods by query: $e');
+      return []; // Kembalikan list kosong jika ada error
+    }
+  }
+
   // Helper untuk memetakan DietPurpose enum (Flutter) ke string goal (BE)
   String? _mapPurposeEnumToString(DietPurpose purpose) {
     switch (purpose) {
@@ -743,6 +811,26 @@ class ApiService {
         return 'stay_healthy';
       // case DietPurpose.other: // DIHAPUS, JANGAN DITAMBAHKAN KEMBALI
       //   return null; // DIHAPUS
+    }
+  }
+
+  // Helper untuk memetakan ActivityLevel enum (Flutter) ke string activity_level (BE)
+  // Anda perlu menambahkan ini jika belum ada, atau sesuaikan dengan enum Anda
+  // Contoh:
+  String? getActivityLevelBackendString(ActivityLevel? activityLevel) {
+    switch (activityLevel) {
+      case ActivityLevel.sedentary:
+        return 'sedentary';
+      case ActivityLevel.lightlyActive:
+        return 'lightly_active';
+      case ActivityLevel.moderatelyActive:
+        return 'moderately_active';
+      case ActivityLevel.veryActive:
+        return 'very_active';
+      case ActivityLevel.superActive:
+        return 'super_active';
+      default:
+        return null;
     }
   }
 }

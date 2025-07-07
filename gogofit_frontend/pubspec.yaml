@@ -39,6 +39,13 @@ dependencies:
     sdk: flutter
   permission_handler: ^11.3.1
   scroll_snap_list: ^0.9.1
+  image_picker: ^1.1.2 # BARU: Untuk memilih gambar dari kamera/galeri
+  # PERBAIKAN: Mengambil tflite_flutter langsung dari GitHub
+  tflite_flutter:
+    git:
+      url: https://github.com/tensorflow/flutter-tflite.git
+      ref: main # Mengambil dari branch 'main' yang seharusnya memiliki perbaikan
+  image: ^4.2.0 # BARU: Untuk pemrosesan gambar (resize, dll.)
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -68,6 +75,8 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
+    - assets/ml_models/model_unquant.tflite # BARU: Daftarkan model TFLite Anda
+    - assets/ml_models/labels.txt # BARU: Daftarkan file label Anda
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

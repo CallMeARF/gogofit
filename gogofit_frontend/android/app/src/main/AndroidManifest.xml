@@ -2,6 +2,13 @@
      <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
+    <!-- BARU: Izin untuk mengakses kamera -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- BARU: Izin untuk membaca dari penyimpanan eksternal (galeri) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <!-- BARU: Izin untuk menulis ke penyimpanan eksternal (menyimpan gambar yang diambil) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+
     <application
         android:label="gogofit_frontend"
         android:name="${applicationName}"

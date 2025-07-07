@@ -45,6 +45,12 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // PERBAIKAN SINTAKS UNTUK KOTLIN DSL (.kts)
+    aaptOptions {
+        noCompress.add("tflite") // Menggunakan .add() untuk List
+        noCompress.add("lite")   // Menggunakan .add() untuk List
+    }
 }
 
 flutter {
