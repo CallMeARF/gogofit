@@ -293,27 +293,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    Center(
-                      child: Text(
-                        'Atau',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: () {
-                          debugPrint('Daftar dengan Google');
-                        },
-                        icon: Image.asset(
-                          'assets/images/google_logo.png',
-                          height: 45,
-                          width: 45,
-                        ),
-                        label: const Text(''),
+                    // BARU: Sembunyikan bagian "Atau" dan Register Google
+                    Offstage(
+                      // Menggunakan Offstage untuk menyembunyikan widget
+                      offstage: true, // Set to true untuk menyembunyikan
+                      child: Column(
+                        children: [
+                          Center(
+                            child: Text(
+                              'Atau',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                          ),
+                          // SizedBox(height: 20), ← dihapus agar tidak ada spasi
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: () {
+                                debugPrint('Daftar dengan Google');
+                              },
+                              icon: Image.asset(
+                                'assets/images/google_logo.png',
+                                height: 45,
+                                width: 45,
+                              ),
+                              label: const Text(
+                                '',
+                              ), // masih boleh const karena isinya kosong & statis
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 20),
