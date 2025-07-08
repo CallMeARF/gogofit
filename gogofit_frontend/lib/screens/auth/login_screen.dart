@@ -359,37 +359,45 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Center(
-                    child: Text(
-                      'Atau',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontFamily: 'Poppins',
-                      ),
+                  // BARU: Sembunyikan bagian "Atau" dan Login Google
+                  Offstage(
+                    offstage: true, // Set to true untuk menyembunyikan
+                    child: Column(
+                      children: [
+                        Center(
+                          child: Text(
+                            'Atau',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () {
+                              debugPrint('Login dengan Google');
+                            },
+                            icon: Image.asset(
+                              'assets/images/google_logo.png',
+                              height: 45,
+                              width: 45,
+                            ),
+                            label: Text(''),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey.shade700,
+                              backgroundColor: Colors.transparent,
+                              elevation: 0,
+                              padding: EdgeInsets.zero,
+                              textStyle: TextStyle(fontFamily: 'Poppins'),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () {
-                        debugPrint('Login dengan Google');
-                      },
-                      icon: Image.asset(
-                        'assets/images/google_logo.png',
-                        height: 45,
-                        width: 45,
-                      ),
-                      label: const Text(''),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        backgroundColor: Colors.transparent,
-                        elevation: 0,
-                        padding: EdgeInsets.zero,
-                        textStyle: const TextStyle(fontFamily: 'Poppins'),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
                   Center(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,

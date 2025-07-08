@@ -142,6 +142,42 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
     }
   }
 
+  // BARU: Fungsi untuk menampilkan dialog "Segera Hadir"
+  void _showComingSoonDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Fitur Belum Tersedia',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            'Mohon maaf, fitur ini sedang dalam pengembangan dan akan segera hadir!',
+            style: TextStyle(fontFamily: 'Poppins'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: primaryBlueNormal,
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -309,33 +345,29 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
               context,
               icon: Icons.food_bank,
               label: 'Nutrisi',
-              onTap: () {
-                debugPrint('Navigasi ke Halaman Nutrisi');
-              },
+              onTap: _showComingSoonDialog,
+              isDeferred: true,
             ),
             _buildMenuItem(
               context,
               icon: Icons.bar_chart,
               label: 'Laporan Mingguan',
-              onTap: () {
-                debugPrint('Navigasi ke Halaman Laporan Mingguan');
-              },
+              onTap: _showComingSoonDialog,
+              isDeferred: true,
             ),
             _buildMenuItem(
               context,
               icon: Icons.settings,
               label: 'Setelan',
-              onTap: () {
-                debugPrint('Navigasi ke Halaman Setelan');
-              },
+              onTap: _showComingSoonDialog,
+              isDeferred: true,
             ),
             _buildMenuItem(
               context,
               icon: Icons.privacy_tip,
               label: 'Pusat Privasi',
-              onTap: () {
-                debugPrint('Navigasi ke Halaman Pusat Privasi');
-              },
+              onTap: _showComingSoonDialog,
+              isDeferred: true,
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -523,6 +555,7 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
     required String label,
     required VoidCallback onTap,
     int? unreadCount,
+    bool isDeferred = false, // BARU: Tambahkan parameter ini
   }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -530,7 +563,10 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       color: lightBlueCardBackground,
       child: InkWell(
-        onTap: onTap,
+        onTap:
+            isDeferred
+                ? _showComingSoonDialog
+                : onTap, // PERBAIKAN: Jika ditunda, panggil dialog
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -570,19 +606,40 @@ class _MoreOptionsScreenState extends State<MoreOptionsScreen> {
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: darkerBlue,
-                    fontSize: 18,
-                    fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Row(
+                  // PERBAIKAN: Gunakan Row untuk menampung label dan status
+                  mainAxisAlignment:
+                      MainAxisAlignment
+                          .spaceBetween, // Agar teks status di kanan
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: darkerBlue,
+                        fontSize: 18,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (isDeferred) // BARU: Tampilkan teks "Belum Tersedia"
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8.0),
+                        child: Text(
+                          'Belum Tersedia',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                            fontFamily: 'Poppins',
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               Icon(
                 Icons.arrow_forward_ios,
-                color: darkerBlue70Opacity, // Variabel ini sekarang terdefinisi
+                color: darkerBlue70Opacity,
                 size: 18,
               ),
             ],
